@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-deployment
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: postgres-service
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgresdb
+        image: bouzouidja/mobilitydb-cloud:latest
+        imagePullPolicy: "IfNotPresent"
+        args:
+            - -c
+            - max_locks_per_transaction=128
+        #    - -c
+        #    - shared_preload_libraries=citus,postgis-2.5.so
+        ports:
+        - containerPort: 5432
+        lifecycle:
+            postStart:
+              exec:
+              #Command to be executed after the initialization of the worker Pod: 1) Create Extensions (pg_stat_statements to get query exec times and pg_cron to create monitoring jobs) 2) Create sessions_log table 3) Create function to monitor sessions every seconds 4) Create pg_cron job to execute the function every minute 4) Create pg_cron job to clear the sessions_log table every 30 minutes
+                command: ["/bin/sh", "-c", "sleep 2;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\n\" > /var/lib/postgresql/data/pg_hba.conf;"]
+
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgredb
+            #- mountPath: /etc/postgresql-secrets-vol
+            #  name: secret-vol
+            #- mountPath: /etc/postgresql-secrets-vol/params
+            #  name: postgres-secret  
+      volumes:
+        - name: postgredb
+          persistentVolumeClaim:
+            claimName: postgres-pv-claim-coordinator
+        #- name: secret-vol
+        #  secret:
+        #    secretName: postgresql-secrets 
+        #    defaultMode: 0640
+        #- name: postgres-secret
+        #  secret:
+        #    secretName: postgres-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+spec:
+  type: NodePort
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      nodePort: 30001

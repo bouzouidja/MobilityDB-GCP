@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-worker
+  labels:
+    app: postgres-worker
+spec:
+  serviceName: postgres-worker
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgres-worker
+  template:
+    metadata:
+      labels:
+        app: postgres-worker
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - postgres-worker
+                    - postgres
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: citus
+        image: dimitris007/mobilitydb:citus10
+        imagePullPolicy: "IfNotPresent"
+        args:
+            - -c
+            - max_locks_per_transaction=128
+            - -c
+            - shared_preload_libraries=citus,postgis-2.5.so
+            - -c
+            - max_connections=500
+        ports:
+        - containerPort: 5432
+        lifecycle:
+            postStart:
+              exec:
+              #Command to be executed after the initialization of the worker Pod: 1) Create Extensions (pg_stat_statements to get query exec times and pg_cron to create monitoring jobs) 2) Create sessions_log table 3) Create function to monitor sessions every seconds 4) Create pg_cron job to execute the function every minute 4) Create pg_cron job to clear the sessions_log table every 30 minutes
+                command: ["/bin/sh", "-c", "sleep 7;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\n\" > /var/lib/postgresql/data/pg_hba.conf; psql -U \"$( cat /etc/postgresql-secrets-vol/params/username )\" -d \"$( cat /etc/postgresql-secrets-vol/params/db )\"  --command=\"CREATE EXTENSION IF NOT EXISTS citus CASCADE;\"; psql -U \"$( cat /etc/postgresql-secrets-vol/params/username )\" -d \"$( cat /etc/postgresql-secrets-vol/params/db )\"  --command=\"CREATE EXTENSION IF NOT EXISTS MobilityDB CASCADE;\"; psql -U \"$( cat /etc/postgresql-secrets-vol/params/username )\" -d \"$( cat /etc/postgresql-secrets-vol/params/db )\"  --command=\"select pg_reload_conf();\"; PGPASSWORD=\"$( cat /etc/postgresql-secrets-vol/params/password )\" psql --host=postgres-master -U \"$( cat /etc/postgresql-secrets-vol/params/username )\" -d \"$( cat /etc/postgresql-secrets-vol/params/db )\" --command=\"SELECT * from master_add_node('\"$POD_IP\"', 5432);\";"]
+
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgredb
+            #- mountPath: /etc/postgresql-secrets-vol
+            #  name: secret-vol
+            - mountPath: /etc/postgresql-secrets-vol/params
+              name: postgres-secret
+      volumes:
+        - name: postgredb
+          persistentVolumeClaim:
+            claimName: postgres-pv-claim-coordinator
+        #- name: secret-vol
+        #  secret:
+        #    secretName: postgresql-secrets 
+        #    defaultMode: 0640
+        - name: postgres-secret
+          secret:
+            secretName: postgres-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-worker
+  labels:
+    app: postgres-worker
+spec:
+  clusterIP: None
+  ports:
+    - port: 5432
+  selector:
+    app: postgres-worker
