@@ -227,6 +227,8 @@ In order to generate pdf file from xml document we need to use dblatex command
 
  # Experiments: single node use case:
 
+
+- Before going to experiments part, make sure that all software needed are installed, osm2pgrouting, osm2pgsql.. install all dependancies on bouzouidja/mobilitydb-cloud image
 ```bash
 #in a console:
 createdb -h localhost -p 5432 -U dbowner brussels
@@ -283,11 +285,62 @@ psql -h 172.17.0.2  -U docker -d brussels -c 'select berlinmod_generate(scaleFac
 - Exploring the data generated>>> SQL queries
 
 Before running the geo-spatial queries, we need first to distribute the data across the node using Citus queries
+
+
+
 ```sql
 SELECT create_distributed_table('trips', 'tripid');
 
+SELECT citus_set_coordinator_host('10.244.1.2', 5432);
 
+## Add workers..
+
+
+## view linked workers
 SELECT * from citus_get_active_worker_nodes();
+## SHOW MORE DETAILS
+SELECT * FROM pg_dist_node
 ```
 
+
+## AUto scaling pods
+- delete pods 
+```bash
+
+kubectl delete pod citus-workers-0
+kubectl delete statefulset web --cascade=orphan
+```
+
+
+
+
+
+## Other possible solution
+
+- YgabytyDB is a tool that manages Cloud native PostgreSQL application
+https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/
+
+https://hub.docker.com/r/yugabytedb/yugabyte
+
+
+
+
+
+
+## Auto scaling spatio-temporal reads and writes using Horizontal Pod AutoScaler:
+- we need to autoscale on reads operations. The reads takes muchtime than the writes because the writes is routed by Citus extension..
+
+### Tasks to do the next time
+Main goals>>>
+- Auto scaling the solution using K8s YAML configuration using metrics..
+CPU utilisation, replicas...
+- Test the Kubernetes YAML configuration on GCP...
+- GCP ressource initialization (GKE, K8s, nodes)...
+- Meet Zimanyi..
+
+Optional>>>
+- add pg_stat_statements to shared preload library in coordinator
+- See if it necessary to install osm and berlinMod generator within the docker container mobilitydb-cloud:latest
+- Add PgBouncer into mobilitydb-cloud:latest image
+- Add KEDA autoscaler see https://keda.sh/, Kubernetes Event Driven Autoscaling
 

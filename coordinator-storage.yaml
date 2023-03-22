@@ -4,7 +4,7 @@ metadata:
   name: postgres-pv-volume-coordinator
   labels:
     type: local
-    app: postgres
+    app: citus-coordinator
 spec:
   storageClassName: manual
   capacity:
@@ -21,7 +21,7 @@ apiVersion: v1
 metadata:
   name: postgres-pv-claim-coordinator
   labels:
-    app: postgres
+    app: citus-coordinator
 spec:
   storageClassName: manual
   accessModes:

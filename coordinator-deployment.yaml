@@ -1,20 +1,22 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: postgres-deployment
+  name: citus-coordinator
   labels:
-    app: postgres
+    app: citus-coordinator
 spec:
+  serviceName: citus-coordinator
   replicas: 1
+  minReadySeconds: 10
   selector:
     matchLabels:
-      app: postgres
-  serviceName: postgres-service
+      app: citus-coordinator
   template:
     metadata:
       labels:
-        app: postgres
+        app: citus-coordinator
     spec:
+      terminationGracePeriodSeconds: 10
       containers:
       - name: postgresdb
         image: bouzouidja/mobilitydb-cloud:latest
@@ -22,17 +24,32 @@ spec:
         args:
             - -c
             - max_locks_per_transaction=128
-        #    - -c
-        #    - shared_preload_libraries=citus,postgis-2.5.so
+            - -c
+            - shared_preload_libraries=citus, postgis-3.so, pg_stat_statements
+            #- -c
+            #- ssl=on
+            #- -c
+            #- ssl_cert_file=/etc/postgresql-secrets-vol/server.crt
+            #- -c
+            #- ssl_key_file=/etc/postgresql-secrets-vol/server.key
         ports:
         - containerPort: 5432
         lifecycle:
             postStart:
               exec:
               #Command to be executed after the initialization of the worker Pod: 1) Create Extensions (pg_stat_statements to get query exec times and pg_cron to create monitoring jobs) 2) Create sessions_log table 3) Create function to monitor sessions every seconds 4) Create pg_cron job to execute the function every minute 4) Create pg_cron job to clear the sessions_log table every 30 minutes
-                command: ["/bin/sh", "-c", "sleep 2;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\n\" > /var/lib/postgresql/data/pg_hba.conf;"]
-
+                #command: ["/bin/sh", "-c", "sleep 2;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust\nhost replication  all samenet trust\nhost all all samenet trust\" > /var/lib/postgresql/data/pg_hba.conf;"]
+                command:
+                  - /bin/sh
+                  - -c
+                  - echo "From citus-coordinator...";
+                  - sleep 2;
+                  - printf "local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust\nhost replication  all samenet trust\n host all all samenet trust" > /var/lib/postgresql/data/pg_hba.conf;
         env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
@@ -48,6 +65,8 @@ spec:
             secretKeyRef:
               name: postgres-secret
               key: POSTGRES_DB
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
         volumeMounts:
             - mountPath: /var/lib/postgresql/data
               name: postgredb
@@ -70,11 +89,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres-service
+  name: citus-coordinator
+  labels:
+    app: citus-coordinator
 spec:
   type: NodePort
   selector:
-    app: postgres
+    app: citus-coordinator
   ports:
     - port: 5432
       nodePort: 30001
