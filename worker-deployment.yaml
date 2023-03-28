@@ -20,7 +20,7 @@ metadata:
   name: citus-workers
 spec:
   serviceName: "citus-workers"
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: citus-workers
@@ -32,6 +32,7 @@ spec:
       containers:
       - name: mobilitydb-cloud
         image: bouzouidja/mobilitydb-cloud:latest
+        imagePullPolicy: "IfNotPresent"
         args:
             - -c
             - max_locks_per_transaction=128
@@ -39,11 +40,57 @@ spec:
             - shared_preload_libraries=citus, postgis-3.so
         ports:
         - containerPort: 5432
+        #resources:
+        #  limits:
+        #    cpu: 500m
+        #  requests:
+        #    cpu: 200m
+
         lifecycle:
             postStart:
               exec:
+                #command: ["/bin/sh", "-c", "echo Hello from the postStart handler, this is the POD IP  ${POD_IP}.. ${citus-coordinator} Host name: ${HOSTNAME} > /usr/share/message; printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust\nhost replication  all samenet trust\nhost all all samenet trust \" > /var/lib/postgresql/data/pg_hba.conf;"]
+                #command: ["/bin/sh", "-c", "sleep 7;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust\nhost replication  all samenet trust\nhost all all samenet trust \" > /var/lib/postgresql/data/pg_hba.conf;POSTGRES_PASSWORD=docker  psql --host=citus-coordinator -U docker  -d mobilitydb  --command=\"SELECT * from citus_add_node('\"$POD_IP\"', 5432);\";"]
+                command: ["/bin/sh", "-c", "sleep 7;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust \" > /var/lib/postgresql/data/pg_hba.conf;psql -U $POSTGRES_USER -d $POSTGRES_DB --command=\" SELECT pg_reload_conf();\"  ;psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\" SELECT * from citus_add_node('$POD_IP', 5432);\";"]
+                #command:
+                #  - timeout
+                #  - 5m
+                #  - sh
+                #  - -c
+                #  - >
+                #     until pg_isready --username$POSTGRES_USER --dbname=$POSTGRES_DB --timeout=5 --quiet; do sleep 2; done;
+                #     psql '--host=citus-coordinator --username=$POSTGRES_USER --dbname=$POSTGRES_DB' -c "SELECT * from citus_add_node('$POD_IP', 5432);"
+
+
+                # PGPASSWORD=docker psql -h citus-coordinator -U docker -d brussels  --command=\"SELECT * from citus_add_node('$POD_IP', 5432);\";
               #Command to be executed after the initialization of the worker Pod: 1) Create Extensions (pg_stat_statements to get query exec times and pg_cron to create monitoring jobs) 2) Create sessions_log table 3) Create function to monitor sessions every seconds 4) Create pg_cron job to execute the function every minute 4) Create pg_cron job to clear the sessions_log table every 30 minutes
-                command: ["/bin/sh", "-c", "sleep 7;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\n\" > /var/lib/postgresql/data/pg_hba.conf; PGPASSWORD=docker psql --host=citus-coordinator -U docker  -d mobilitydb --command=\"SELECT * from citus_add_node('\"$POD_IP\"', 5432);\";"]
+                #command: 
+                #  - /bin/sh
+                #  - -c
+                #  - printf "local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust\nhost replication  all samenet trust\n host all all samenet trust" > /var/lib/postgresql/data/pg_hba.conf;
+                #  - if [ ${POD_IP} ]; then  psql --host=citus-coordinator --username=$POSTGRES_USER --dbname=$POSTGRES_DB --command="\dx" ; fi
+
+                #command:
+                #  - /bin/sh
+                #  - -c
+                #  - echo "From citus-worker...";
+                #  - printf "local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust\nhost replication  all samenet trust\n host all all samenet trust" > /var/lib/postgresql/data/pg_hba.conf;
+                #  - createdb  -U docker newdb 
+                #  - PGPASSWORD=docker psql --host=citus-coordinator -U docker  -d mobilitydb --command="SELECT * from citus_add_node('$POD_IP', 5432); 
+                 
+                  
+                #command: ["/bin/sh", "-c", "printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust\nhost replication  all samenet trust\nhost all all samenet trust \" > /var/lib/postgresql/data/pg_hba.conf; PGPASSWORD=docker psql --host=citus-coordinator -U docker  -d mobilitydb --command=\"SELECT * from citus_add_node('\"$POD_IP\"', 5432);\";"]
+                #PGPASSWORD=docker psql 'host=citus-coordinator -d mobilitydb user=docker' -c "SELECT * from citus_add_node('${HOSTNAME}.citus-workers.default.svc.cluster.local', 6432);
+                #  - >
+                #      until pg_isready -U docker --timeout=5 --quiet; do sleep 2; done;
+                #      export PGPASSWORD=docker psql 'host=citus-coordinator -U docker -d mobilitydb ' -c "SELECT * from citus_add_node('$POD_IP', 5432);
+
+
+        resources:
+          limits:
+            cpu: 500m
+          requests:
+            cpu: 200m 
         env:
         - name: POSTGRES_USER
           valueFrom:
@@ -55,11 +102,17 @@ spec:
             secretKeyRef:
               name: postgres-secret
               key: POSTGRES_PASSWORD
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
         - name: POSTGRES_DB
           valueFrom:
             secretKeyRef:
               name: postgres-secret
               key: POSTGRES_DB
+
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
         - name: POD_IP

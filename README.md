@@ -63,7 +63,7 @@ psql -h 192.168.67.2 -U docker -p 30001 mobilitydb
 psql -h 192.168.67.3 -U docker -p 30001 mobilitydb
 psql -h 192.168.67.4 -U docker -p 30001 mobilitydb
 ```
-
+psql -h 192.168.67.4 -U docker -p 30001 brussels SELECT * from citus_add_node('10.244.1.9', 5432);
 
 
 - Debug and logs :
@@ -75,7 +75,8 @@ kubectl describe pod podname
 kubectl logs podname –all-containers
 
 kubectl get events --field-selector involvedObject.name=podname
-
+### watch Horizontal Pod Autoscaling
+kubectl get hpa citus-workers --watch
 
 ### see docker images within the minikube node
 minikube -p mobilitydb-multi-node ssh docker images
@@ -215,20 +216,9 @@ In order to generate pdf file from xml document we need to use dblatex command
 
 
 
-
-
-
-
-
-
-
-
-
-
  # Experiments: single node use case:
 
 
-- Before going to experiments part, make sure that all software needed are installed, osm2pgrouting, osm2pgsql.. install all dependancies on bouzouidja/mobilitydb-cloud image
 ```bash
 #in a console:
 createdb -h localhost -p 5432 -U dbowner brussels
@@ -288,7 +278,10 @@ Before running the geo-spatial queries, we need first to distribute the data acr
 
 
 
-```sql
+
+
+
+SELECT * from citus_add_node('$POD_IP', 5432);
 SELECT create_distributed_table('trips', 'tripid');
 
 SELECT citus_set_coordinator_host('10.244.1.2', 5432);
@@ -300,12 +293,47 @@ SELECT citus_set_coordinator_host('10.244.1.2', 5432);
 SELECT * from citus_get_active_worker_nodes();
 ## SHOW MORE DETAILS
 SELECT * FROM pg_dist_node
+
+
+
+## Auto scaling pods
+
+```bash
+### Make sure that api-server service is installed without missing endpoint
+
+kubectl get apiservices
+
+# get the components file 
+wget https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.5.0/components.yaml
+
+## edit the file and add the flag - --kubelet-insecure-tls
+- --kubelet-insecure-tls
+###
 ```
 
 
-## AUto scaling pods
-- delete pods 
+
+
+```sql
+
+---Run the stress test 
+
+do $$
+begin
+   for counter in 1..5 loop
+    raise notice 'counter: %', counter;
+   end loop;
+end; $$
+```
+- Monitor the workload by watch command
+
+
 ```bash
+kubectl get  hpa mobilitydb-cloud --watch
+
+```
+
+
 
 kubectl delete pod citus-workers-0
 kubectl delete statefulset web --cascade=orphan
@@ -333,7 +361,8 @@ https://hub.docker.com/r/yugabytedb/yugabyte
 ### Tasks to do the next time
 Main goals>>>
 - Auto scaling the solution using K8s YAML configuration using metrics..
-CPU utilisation, replicas...
+CPU utilisation, replicas... >>> Done
+- AUtoscaling, try active database principle for rebalancing shard across the cluster
 - Test the Kubernetes YAML configuration on GCP...
 - GCP ressource initialization (GKE, K8s, nodes)...
 - Meet Zimanyi..
