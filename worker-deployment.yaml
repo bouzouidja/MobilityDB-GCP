@@ -28,7 +28,9 @@ spec:
     metadata:
       labels:
         app: citus-workers
+
     spec:
+      terminationGracePeriodSeconds: 160
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -65,8 +67,7 @@ spec:
                 command: ["/bin/sh", "-c", "sleep 9;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust \" > /var/lib/postgresql/data/pg_hba.conf;createdb -U $POSTGRES_USER  $POSTGRES_DB ;psql -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT pg_reload_conf();\"  ;psql -U $POSTGRES_USER -d $POSTGRES_DB --command=\" CREATE EXTENSION IF NOT EXISTS citus;\";psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT * from citus_add_node('$POD_IP', 5432);\";"]
             preStop:
               exec:
-                command: ["/bin/sh", "-c", "psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT * FROM citus_set_node_property('$POD_IP', 5432, 'shouldhaveshards', false);\";psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT citus_rebalance_start(drain_only := true);\"  ;psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT * from citus_remove_node('$POD_IP', 5432);\";"]
-
+                command: ["/bin/sh", "-c", "psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT * FROM citus_set_node_property('$POD_IP', 5432, 'shouldhaveshards', false);\";psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT citus_rebalance_start(drain_only := true);\" ; psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT citus_rebalance_wait();\"; psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT * from citus_remove_node('$POD_IP', 5432);\";"]
 
         resources:
           limits:
