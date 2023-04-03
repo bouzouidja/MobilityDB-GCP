@@ -269,7 +269,12 @@ psql -h 172.17.0.2  -U docker -d brussels -f ./BerlinMod_Brussels/MobilityDB-Ber
 ```bash
 
 psql -h 172.17.0.2  -U docker -d brussels -c 'select berlinmod_generate(scaleFactor := 0.005)'
+###dump your generated database
+
+pg_dump -h 172.17.0.5  -U docker -p 5432 -d brussels-s1 -f Desktop/Thesis_Work/berlinmod_geo_1_backup.dump 
 # calls the main pgplsql function to start the simulation
+
+
 ```
 
 - Exploring the data generated>>> SQL queries
@@ -280,13 +285,14 @@ Before running the geo-spatial queries, we need first to distribute the data acr
 
 
 
+```sql
+
+## Add workers..
 
 SELECT * from citus_add_node('$POD_IP', 5432);
 SELECT create_distributed_table('trips', 'tripid');
 
 SELECT citus_set_coordinator_host('10.244.1.2', 5432);
-
-## Add workers..
 
 
 ## view linked workers
@@ -294,6 +300,26 @@ SELECT * from citus_get_active_worker_nodes();
 ## SHOW MORE DETAILS
 SELECT * FROM pg_dist_node
 
+
+### Shards information 
+SELECT * FROM citus_shards;
+
+```
+
+# Rebalancing shards
+```bash
+psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT citus_rebalance_start();\"
+
+
+SELECT details FROM citus_rebalance_status();
+
+
+## Querying the size of all distributed tables
+SELECT table_name, table_size
+  FROM citus_tables;
+
+
+```
 
 
 ## Auto scaling pods
@@ -360,9 +386,9 @@ https://hub.docker.com/r/yugabytedb/yugabyte
 
 ### Tasks to do the next time
 Main goals>>>
-- Auto scaling the solution using K8s YAML configuration using metrics..
-CPU utilisation, replicas... >>> Done
-- AUtoscaling, try active database principle for rebalancing shard across the cluster
+
+- AUtoscaling, try active database principle for rebalancing shard across the cluster>>> confirm connection, confirn deletion of worker when pods is deleted
+
 - Test the Kubernetes YAML configuration on GCP...
 - GCP ressource initialization (GKE, K8s, nodes)...
 - Meet Zimanyi..
