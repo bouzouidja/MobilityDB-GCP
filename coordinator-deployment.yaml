@@ -1,16 +1,34 @@
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pv-claim-coordinator
+  labels:
+    app: citus-coordinator
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 30Gi
+  storageClassName: standard-rwo
+
+
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: citus-coordinator
   labels:
     app: citus-coordinator
 spec:
-  type: NodePort
   selector:
     app: citus-coordinator
+  type: NodePort
   ports:
     - port: 5432
       nodePort: 30001
+
+
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -31,9 +49,26 @@ spec:
         app: citus-coordinator
     spec:
       terminationGracePeriodSeconds: 10
+      #nodeSelector:
+      #  cloud.google.com/compute-class: Balanced
+      #  kubernetes.io/arch: amd64
+      #nodeSelector:
+      #  nodetype: coordinator
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    #- citus-workers
+                    - citus-coordinator
+              topologyKey: "kubernetes.io/hostname"
       containers:
       - name: postgresdb
-        image: bouzouidja/mobilitydb-cloud:latest
+        #image: bouzouidja/mobilitydb-cloud:latest
+        image:  europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud
         imagePullPolicy: "IfNotPresent"
         args:
             - -c
@@ -42,6 +77,8 @@ spec:
             - shared_preload_libraries=citus, postgis-3.so, pg_stat_statements
             - -c
             - wal_level=logical
+            - -c
+            - listen_addresses=*
             #- -c
             #- hba_file=/etc/postgres/pg_hba.conf
             #- ssl=on
@@ -57,12 +94,20 @@ spec:
         #    cpu: 500m
         #  requests:
         #    cpu: 200m
-        lifecycle:
-            postStart:
-              exec:
+        #lifecycle:
+        #    postStart:
+        #      exec:
               #Command to be executed after the initialization of the worker Pod: 1) Create Extensions (pg_stat_statements to get query exec times and pg_cron to create monitoring jobs) 2) Create sessions_log table 3) Create function to monitor sessions every seconds 4) Create pg_cron job to execute the function every minute 4) Create pg_cron job to clear the sessions_log table every 30 minutes
-
-                command: ["/bin/sh", "-c", "sleep 7 ;printf \"local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust \" > /var/lib/postgresql/data/pg_hba.conf;createdb -U $POSTGRES_USER  $POSTGRES_DB; psql -U $POSTGRES_USER -d $POSTGRES_DB --command=\" SELECT pg_reload_conf();\"  ;psql -U $POSTGRES_USER -d $POSTGRES_DB --command=\" CREATE EXTENSION IF NOT EXISTS citus;\";psql -U $POSTGRES_USER -d $POSTGRES_DB --command=\"DELETE  FROM pg_dist_node;\"  ;psql -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT citus_set_coordinator_host('$POD_IP', 5432);\";"]
+        #        command: 
+        #        - /bin/sh
+        #        - -c
+        #        - |
+        #          sleep 7
+        #          printf "local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust " > /var/lib/postgresql/data/pg_hba.conf 
+        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="SELECT pg_reload_conf();"
+        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="SELECT CREATE EXTENSION IF NOT EXISTS citus;"
+        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="DELETE  FROM pg_dist_node;"
+        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="SELECT citus_set_coordinator_host('$POD_IP', 5432);"
             #preStop:
             #  exec:
               #Commands to be executed before terminating the worker Pod: 1)Unregister current Worker from Citus cluster by using $POD_ID env variable

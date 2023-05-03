@@ -113,24 +113,6 @@ minikube -p mobilitydb-multi-node kubectl -- create -f coordinator-deployment.ya
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ############################ GCP##############################
 - Create Kubernete cluster on GCP using gcloud command
 
@@ -140,6 +122,9 @@ minikube -p mobilitydb-multi-node kubectl -- create -f coordinator-deployment.ya
 
 gcloud container clusters create-auto mobilitydb-cluster \
     --region=europe-west1
+
+
+gcloud container clusters create-auto mobilitydb-multi-node  --num-nodes=5 --region=europe-west1 
 
 ## view clusters info
 gcloud container clusters list
@@ -155,8 +140,9 @@ export USE_GKE_GCLOUD_AUTH_PLUGIN=True
 
 source ~/.bashrc
 
+
 #get the credential 
-gcloud container clusters get-credentials mobilitydb-cluster     --region europe-west1
+gcloud container clusters get-credentials mobilitydb-cluster-1 --zone us-central1-c --project argon-system-263617
 
 # create ConfigMap and secret 
 ```bash
@@ -169,6 +155,70 @@ kubectl create -f postgres-secret.yaml
 ## delete the cluster 
 gcloud container clusters delete mobilitydb-cluster \
     --region europe-west1
+
+```
+
+
+# Registry managment
+
+
+
+```bash
+
+# list images on container registry
+gcloud container images list
+
+## ls images on remote registry using gcrane
+gcrane ls gcr.io/argon-system-263617
+
+## copy images from 2 remote registry using gcrane
+gcrane cp gcr.io/argon-system-263617/mobilitydb-cloud europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud
+
+#view which registry i have access
+cat ~/.docker/config.json
+
+#tag an images
+docker tag bouzouidja/mobilitydb-cloud europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud:latest
+
+
+## push the tagged images to the registry
+docker push europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud
+
+
+# describe images on artifact registry
+gcloud artifacts repositories describe gcp-registry --project=argon-system-263617 --location=europe-west1
+
+### resize the clustr to stop all ressources
+
+gcloud container clusters resize mobilitydb-cluster-1 --zone us-central1-c --node-pool mobilitydb-pool --num-nodes 0
+
+
+kubectl get nodes --show-labels
+# label the coordinator node 
+kubectl label nodes gke-mobilitydb-cluste-mobilitydb-pool-fc867a69-1brb nodetype=coordinator
+
+
+# view quota info for my region
+gcloud compute regions describe us-central1
+
+
+
+
+##
+  metric: SSD_TOTAL_GB
+  usage: 90.0
+- limit: 100.0
+
+gcloud compute project-info describe --project argon-system-263617
+
+
+
+## copy container images remotely
+gcrane cp GCR-LOCATION.gcr.io/PROJECT/IMAGE \
+AR-LOCATION.pkg.dev/PROJECT/REPOSITORY/IMAGE
+
+
+
 
 ```
 
@@ -221,6 +271,12 @@ In order to generate pdf file from xml document we need to use dblatex command
 
 ```bash
 #in a console:
+# connect to your coordinator node 
+# access postgres using kubectl
+kubectl exec citus-coordinator-0 -i -t -- psql -U docker -d brussels-s1
+psql -h 192.168.67.4 -U docker -p 30001 mobilitydb
+
+
 createdb -h localhost -p 5432 -U dbowner brussels
 # replace localhost with your database host, 5432 with your port,
 # and dbowner with your database user
@@ -293,12 +349,12 @@ SELECT * from citus_add_node('$POD_IP', 5432);
 SELECT create_distributed_table('trips', 'tripid');
 
 SELECT citus_set_coordinator_host('10.244.1.2', 5432);
-
+SELECT create_reference_table('regions');
 
 ## view linked workers
 SELECT * from citus_get_active_worker_nodes();
 ## SHOW MORE DETAILS
-SELECT * FROM pg_dist_node
+SELECT * FROM pg_dist_node;
 
 
 ### Shards information 
@@ -387,15 +443,17 @@ https://hub.docker.com/r/yugabytedb/yugabyte
 ### Tasks to do the next time
 Main goals>>>
 
-- AUtoscaling, try active database principle for rebalancing shard across the cluster>>> confirm connection, confirn deletion of worker when pods is deleted
-
-- Test the Kubernetes YAML configuration on GCP...
-- GCP ressource initialization (GKE, K8s, nodes)...
-- Meet Zimanyi..
+- solve this error to run workers deployment>>> 1 node(s) didn't match pod anti-affinity rules, 3 node(s) didn't find available persistent volumes to bind. preemption: 0/4 nodes are available: 1 No preemption victims found for incoming pod, 3 Preemption is not helpful for scheduling.
 
 Optional>>>
 - add pg_stat_statements to shared preload library in coordinator
-- See if it necessary to install osm and berlinMod generator within the docker container mobilitydb-cloud:latest
-- Add PgBouncer into mobilitydb-cloud:latest image
+- Add PgBouncer and pg-pool extension into mobilitydb-cloud:latest image
 - Add KEDA autoscaler see https://keda.sh/, Kubernetes Event Driven Autoscaling
 
+
+
+
+
+##### Relevant questions came in my mind that may be occur during the defense
+
+. Why Google Cloud Platform?, the most of current application is converted to cloud native solution using microservices, docker and K8s. Because of the 5G, Big data is a boom.... 
