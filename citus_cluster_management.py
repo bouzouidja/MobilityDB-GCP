@@ -336,11 +336,20 @@ def sample_start_cluster(cluster_id,zone,project_id,num_nodes):
 
 
 parser = argparse.ArgumentParser(description='Scaling Citus cluster on GKE.')
-
+"""
 parser.add_argument('resize', 
                         help='Scale out or scale in Citus cluster. We assume that your Citus cluster on GKE is initialized\
-                         and your database is distributed over the workers.\
-                         scale_out, scale_in')
+                         and your database is distributed over the workers.')
+
+parser.add_argument('start', 
+                        help='Start Citus cluster')
+
+parser.add_argument('stop', 
+                        help='Stop Citus cluster')
+"""
+parser.add_argument('action', choices=['start', 'stop', 'resize'],
+                        help='Cluster management commands')
+    
 
 parser.add_argument('--cluster-name', dest='cluster_name', required=True,
                         help='Name of the cluster.')
@@ -359,10 +368,18 @@ args = parser.parse_args()
 
 
 # Decide which Daemon action to do
-if args.resize:
+if args.action=="start":
+    if args.num_nodes:
         #scale_out(args.num_nodes)
-        #sample_stop_cluster(args.cluster_name,args.cluster_zone, args.cluster_project,args.num_nodes)
+        #
+        sample_start_cluster(args.cluster_name,args.cluster_zone, args.cluster_project,int(args.num_nodes))
+    else:
+        print("Number of nodes not specified in the argument --num-nodes")
+elif args.action=="stop":        
+        sample_stop_cluster(args.cluster_name,args.cluster_zone, args.cluster_project)
 
-        #sample_start_cluster(args.cluster_name,args.cluster_zone, args.cluster_project,int(args.num_nodes))
+elif args.action=="resize":
+    if args.num_nodes:
         sample_set_node_pool_size(args.cluster_name,args.cluster_zone, args.cluster_project,int(args.num_nodes))
-
+    else:
+        print("Number of nodes not specified in the argument --num-nodes")
