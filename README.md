@@ -112,24 +112,87 @@ minikube -p mobilitydb-multi-node kubectl -- create -f coordinator-deployment.ya
 
 ```
 
-
+# GKE cluster management
 ############################ GCP##############################
 - Create Kubernete cluster on GCP using gcloud command
 
 ```bash
 
-# Create K8s cluster
 
-gcloud container clusters create-auto mobilitydb-cluster \
-    --region=europe-west1
+# Create a project if no existing project
+# Enable a billing plan and associated to the project
+# Enable the GKE service on https://console.cloud.google.com/apis/enableflow?apiid=container.googleapis.com
+
+# Authenticate to pulling up the credentials of your Google account in order to use the gcloud CLI 
+gcloud auth login
+
+```
+
+- Pushing moblititydb-cloud image to the artifact registry in GCP  
+
+We assume that an artifact registry is already created in GCP in a given region.
+https://console.cloud.google.com/artifacts/docker.
+After creating an artifact registry, you will get an ULR for your new registry for this format:LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
+Where:
 
 
-gcloud container clusters create-auto mobilitydb-multi-node  --num-nodes=5 --region=europe-west1 
+* LOCATION is the regional or multi-regional location of the repository where the image is stored, for example us-east1 or us.
+
+* PROJECT-ID is your Google Cloud console project ID. If your project ID contains a colon (:), see Domain-scoped projects.
+
+* REPOSITORY is the name of the repository where the image is stored.
+
+* IMAGE is the image's name. It can be different than the image's local name.
+
+
+- Pull mobilitydb-cloud locally from docker hub.
+```bash
+
+docker pull bouzouidja/mobilitydb-cloud:latest
+
+```
+- Tag mobilitydb-cloud with the URL of your new registry in GCP 
+
+
+```bash
+docker tag bouzouidja/mobilitydb-cloud LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
+
+```
+
+- Now we can push mobilitydb-cloud to the new registry
+
+
+```bash
+
+#First Authenticating to a repository
+gcloud auth configure-docker LOCATION-docker.pkg.dev
+
+docker push LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
+
+
+```
+For the full manual on how to push images on GCP artifact registry, use this doc
+https://cloud.google.com/artifact-registry/docs/docker/pushing-and-pulling#cred-helper
+
+
+
+- Create GKE cluster
+
+
+```bash
+
+gcloud container clusters create mobilitydb-cluster --zone europe-west1-c --node-pool mobilitydb-node-pool --machine-type e2-standard-4 --disk-type pd-balanced --num-nodes 4
 
 ## view clusters info
-gcloud container clusters list
+gcloud container clusters list --project YOUR_GCP_PROJECT_NAME
 
-#install kubectl to manage GCP K8s cluster if it not found in my local machine  
+```
+
+
+- install kubectl to manage GCP K8s cluster if it not found in my local machine  
+
+```bash
+
 sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
 
 #kubectl version
@@ -141,20 +204,44 @@ export USE_GKE_GCLOUD_AUTH_PLUGIN=True
 source ~/.bashrc
 
 
-#get the credential 
+```
+
+- Interact with your cluster using Kubectl
+
+```bash
+
+#get the credential first in order to connect to you GKE 
 gcloud container clusters get-credentials mobilitydb-cluster-1 --zone us-central1-c --project argon-system-263617
 
-# create ConfigMap and secret 
+##view your GKE nodes
+kubectl get node -o wide
+
+
+```
+
+
+- Deploy on your GKE
+
 ```bash
 kubectl create -f postgres-config.yaml
 kubectl create -f postgres-secret.yaml
+kubectl create -f postgres-deployment.yaml
+```
+- delete the cluster 
 
+```bash
 
-
-
-## delete the cluster 
 gcloud container clusters delete mobilitydb-cluster \
     --region europe-west1
+
+```
+
+
+- In order expose PostgreSQL as service from GKE, you may open a port 30001 for example
+```bash
+
+
+gcloud compute firewall-rules create mobilitydb-node-port   --project distributed-postgresql-82971  --allow tcp:30001
 
 ```
 
@@ -174,16 +261,16 @@ gcrane ls gcr.io/argon-system-263617
 ## copy images from 2 remote registry using gcrane
 gcrane cp gcr.io/argon-system-263617/mobilitydb-cloud europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud
 
+gcrane cp europe-west1-docker.pkg.dev/distributed-postgresql-82971/sidahmed-gcp-registry/mobilitydb-cloud
 #view which registry i have access
 cat ~/.docker/config.json
 
 #tag an images
-docker tag bouzouidja/mobilitydb-cloud europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud:latest
+docker tag europe-west1-docker.pkg.dev/distributed-postgresql-82971/sidahmed-gcp-registry/mobilitydb-cloud/mobilitydb-cloud:latest
 
 
 ## push the tagged images to the registry
-docker push europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud
-
+docker push europe-west1-docker.pkg.dev/distributed-postgresql-82971/sidahmed-gcp-registry/mobilitydb-cloud
 
 # describe images on artifact registry
 gcloud artifacts repositories describe gcp-registry --project=argon-system-263617 --location=europe-west1
@@ -195,12 +282,15 @@ gcloud container clusters resize mobilitydb-cluster-1 --zone us-central1-c --nod
 
 kubectl get nodes --show-labels
 # label the coordinator node 
-kubectl label nodes gke-mobilitydb-cluste-mobilitydb-pool-fc867a69-1brb nodetype=coordinator
+kubectl label nodes gke-mobilitydb-cluste-mobilitydb-pool-fc867a69-1brb nodetype=worker
 
 
 # view quota info for my region
+https://console.cloud.google.com/iam-admin/quotas?usage=USED&project=argon-system-263617
 gcloud compute regions describe us-central1
 
+gcloud compute firewall-rules create test-node-port     --allow tcp:NODE_PORT
+gcloud compute firewall-rules create mobilitydb-2-node-port     --allow tcp:30002
 
 
 
@@ -247,7 +337,7 @@ Hostname: hello-server-7cc77d5467-q62td
 
 run a docker MobilityDB Cloud using the develop version (MEOS) 1.1
 ```bash
-docker run --name dist-mobilitydb -d -e POSTGRES_USER=docker -e POSTGRES_PASSWORD=postgres  bouzouidja/mobilitydb-cloud:latest 
+docker run --name mobilitydb-cloud -d -e POSTGRES_USER=docker -e POSTGRES_PASSWORD=docker  bouzouidja/mobilitydb-cloud:latest 
 ```
 To build a Dockerfile use:
 ```bash
@@ -262,9 +352,6 @@ In order to generate pdf file from xml document we need to use dblatex command
 ```bash
  dblatex -s texstyle.sty -T native -t pdf -o mobilitydb-berlinmod.pdf mobilitydb-berlinmod.xml
  ```
-
-
-
 
  # Experiments: single node use case:
 
@@ -297,8 +384,8 @@ We should have all the following extensions in order to run the experiments
 
 ```bash
 # in a console, go to the generatorHome then:
-osm2pgrouting -h 172.17.0.2  -U docker -W -f brussels.osm --dbname brussels \
--c mapconfig_brussels.xml
+osm2pgrouting -h 35.189.193.185  -U docker -W docker -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels.osm --dbname brussels-s1 -c ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/mapconfig_brussels.xml
+
 ```
 
 
@@ -306,11 +393,11 @@ osm2pgrouting -h 172.17.0.2  -U docker -W -f brussels.osm --dbname brussels \
 ```bash
 
 
-osm2pgsql -c -H 172.17.0.2  -U docker -W  -d brussels brussels.osm
+osm2pgsql -c -H 35.189.193.185  -U docker -W  -P 30001 -d brussels-s1 ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels.osm
 # loads all layers in the osm file, including the adminstrative regions
-psql -h 172.17.0.2  -U docker -d brussels -f ./BerlinMod_Brussels/MobilityDB-BerlinMOD/BerlinMOD/brussels_preparedata.sql
+psql -h 35.189.193.185  -U docker -d brussels-s1 -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels_preparedata.sql
 # samples home and work nodes, transforms data to SRID 3857, does further data preparation
-psql -h 172.17.0.2  -U docker -d brussels -f ./BerlinMod_Brussels/MobilityDB-BerlinMOD/BerlinMOD/berlinmod_datagenerator.sql
+psql -h 35.189.193.185  -U docker -d brussels-s1  -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/berlinmod_datagenerator.sql
 # adds the pgplsql functions of the simulation to the database
 
 
@@ -324,7 +411,7 @@ psql -h 172.17.0.2  -U docker -d brussels -f ./BerlinMod_Brussels/MobilityDB-Ber
 
 ```bash
 
-psql -h 172.17.0.2  -U docker -d brussels -c 'select berlinmod_generate(scaleFactor := 0.005)'
+psql -h  35.189.193.185 -U docker -d brussels-s1 -p 30001 -c 'select berlinmod_generate(scaleFactor := 0.003)'
 ###dump your generated database
 
 pg_dump -h 172.17.0.5  -U docker -p 5432 -d brussels-s1 -f Desktop/Thesis_Work/berlinmod_geo_1_backup.dump 
@@ -346,10 +433,13 @@ Before running the geo-spatial queries, we need first to distribute the data acr
 ## Add workers..
 
 SELECT * from citus_add_node('$POD_IP', 5432);
-SELECT create_distributed_table('trips', 'tripid');
+SELECT create_distributed_table('edges', 'id');
 
-SELECT citus_set_coordinator_host('10.244.1.2', 5432);
-SELECT create_reference_table('regions');
+SELECT citus_set_coordinator_host('10.0.1.7', 5432);
+SELECT create_reference_table('trips');
+
+## to remove local data form reference or distributed table
+SELECT truncate_local_data_after_distributing_table($$public.trips$$)
 
 ## view linked workers
 SELECT * from citus_get_active_worker_nodes();
@@ -359,6 +449,21 @@ SELECT * FROM pg_dist_node;
 
 ### Shards information 
 SELECT * FROM citus_shards;
+
+
+# Execute command on workers
+SELECT run_command_on_workers($cmd$ SHOW work_mem; $cmd$);
+
+# remove local data after distribution or referencing tables from disk 
+SELECT truncate_local_data_after_distributing_table($$public.periods$$)
+ 
+### update the pod ip in pg_dist_node table when the pod is created
+select * from citus_update_node(123, 'new-address', 5432);
+# or ..
+select citus_update_node(nodeid, 'new-address', nodeport)
+  from pg_dist_node
+ where nodename = 'old-address';
+
 
 ```
 
@@ -376,7 +481,10 @@ SELECT table_name, table_size
 
 
 ```
-
+### Scaling pods 
+```bash
+kubectl scale statefulsets citus-workers --replicas=7
+```
 
 ## Auto scaling pods
 
@@ -457,3 +565,57 @@ Optional>>>
 ##### Relevant questions came in my mind that may be occur during the defense
 
 . Why Google Cloud Platform?, the most of current application is converted to cloud native solution using microservices, docker and K8s. Because of the 5G, Big data is a boom.... 
+
+
+
+
+#### Our meating
+
+- SHow the experiments chapter and the benchmark app
+- Is it important to show all benchmark in appendecices? 
+- Show the distributed database on GKE? what about the figures? and the section title?
+
+- Ask for GCP credits, just oto finish our capture, scale in and scale out and make a video later?
+- How we proceed to the submition? when you can read my thesis?? 
+
+
+
+
+
+
+Vehicles format
+echel log dans les graph
+
+
+tips the day of defense:
+- Why we do not use autoscaling?
+see the doc of drain function, it need to finish before running other distributed query
+https://docs.citusdata.com/en/v11.3/develop/api_udf.html?highlight=drain%20node#id151
+
+
+Example
+
+Here are the typical steps to remove a single node (for example ‘10.0.0.1’ on a standard PostgreSQL port):
+
+    Drain the node.
+
+    SELECT * from citus_drain_node('10.0.0.1', 5432);
+
+    Wait until the command finishes
+
+    Remove the node
+
+When draining multiple nodes it’s recommended to use citus_rebalance_start instead. Doing so allows Citus to plan ahead and move shards the minimum number of times.
+
+    Run this for each node that you want to remove:
+
+    SELECT * FROM citus_set_node_property(node_hostname, node_port, 'shouldhaveshards', false);
+
+    Drain them all at once with citus_rebalance_start:
+
+    SELECT * FROM citus_rebalance_start(drain_only := true);
+
+    Wait until the draining rebalance finishes
+
+    Remove the nodes
+

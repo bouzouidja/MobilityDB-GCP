@@ -9,7 +9,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 30Gi
+      storage: 5Gi
   storageClassName: standard-rwo
 
 
@@ -68,7 +68,7 @@ spec:
       containers:
       - name: postgresdb
         #image: bouzouidja/mobilitydb-cloud:latest
-        image:  europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud
+        image:  europe-west1-docker.pkg.dev/distributed-postgresql-82971/sidahmed-gcp-registry/mobilitydb-cloud
         imagePullPolicy: "IfNotPresent"
         args:
             - -c
@@ -79,6 +79,8 @@ spec:
             - wal_level=logical
             - -c
             - listen_addresses=*
+            #- -c
+            #- max_wal_size=8GB
             #- -c
             #- hba_file=/etc/postgres/pg_hba.conf
             #- ssl=on
@@ -91,23 +93,28 @@ spec:
         - containerPort: 5432
         #resources:
         #  limits:
-        #    cpu: 500m
+        #    cpu: 3500m
+        #    memory: 10G
         #  requests:
-        #    cpu: 200m
-        #lifecycle:
-        #    postStart:
-        #      exec:
+        #    cpu: 3000m
+        #    memory: 8G
+        lifecycle:
+            postStart:
+              exec:
               #Command to be executed after the initialization of the worker Pod: 1) Create Extensions (pg_stat_statements to get query exec times and pg_cron to create monitoring jobs) 2) Create sessions_log table 3) Create function to monitor sessions every seconds 4) Create pg_cron job to execute the function every minute 4) Create pg_cron job to clear the sessions_log table every 30 minutes
-        #        command: 
-        #        - /bin/sh
-        #        - -c
-        #        - |
-        #          sleep 7
-        #          printf "local all all trust\nhost all all 127.0.0.1/32 trust\nhost all all ::1/128 trust\nhost all all 0.0.0.0/0 trust\nlocal replication all trust\nhost replication all 127.0.0.1/32 trust\nhost replication all ::1/128 trust " > /var/lib/postgresql/data/pg_hba.conf 
-        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="SELECT pg_reload_conf();"
-        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="SELECT CREATE EXTENSION IF NOT EXISTS citus;"
-        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="DELETE  FROM pg_dist_node;"
-        #          psql -U $POSTGRES_USER -d $POSTGRES_DB --command="SELECT citus_set_coordinator_host('$POD_IP', 5432);"
+                command: 
+                - /bin/sh
+                - -c
+                - |
+                  sleep 5
+                  psql -U $POSTGRES_USER -d $POSTGRES_DB --command="CREATE EXTENSION IF NOT EXISTS citus; CREATE EXTENSION IF NOT EXISTS hstore; CREATE EXTENSION IF NOT EXISTS mobilitydb cascade; CREATE EXTENSION IF NOT EXISTS pgrouting;"
+                  psql -U $POSTGRES_USER -d $POSTGRES_DB --command="CREATE TABLE IF NOT EXISTS pod_information (pod_ip VARCHAR(20),nodeid INTEGER,nodeport INTEGER, pod_hostname VARCHAR(40));"
+                  psql -U $POSTGRES_USER -d $POSTGRES_DB --command="SELECT citus_set_coordinator_host('$POD_IP', 5432);"
+                  psql -U $POSTGRES_USER -d $POSTGRES_DB --command="INSERT INTO pod_information(pod_ip, nodeid, nodeport, pod_hostname ) SELECT nodename, nodeid, nodeport, '${HOSTNAME}' FROM pg_dist_node WHERE nodename = '$POD_IP' and NOT EXISTS (SELECT pod_ip FROM pod_information WHERE pod_ip = '$POD_IP') and NOT EXISTS (SELECT pod_hostname FROM pod_information WHERE pod_hostname = '${HOSTNAME}');" 
+                       
+
+
+
             #preStop:
             #  exec:
               #Commands to be executed before terminating the worker Pod: 1)Unregister current Worker from Citus cluster by using $POD_ID env variable
@@ -118,6 +125,14 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
 
         - name: POSTGRES_USER
           valueFrom:
@@ -139,6 +154,7 @@ spec:
             secretKeyRef:
               name: postgres-secret
               key: POSTGRES_DB
+              
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
         volumeMounts:
