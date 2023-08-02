@@ -1,28 +1,13 @@
 #This code is used ot perform my thesis experiments
 import os
-import psycopg2
-import psycopg2.extensions
-from psycopg2.extras import LoggingConnection, LoggingCursor
-import logging
-
 # Run this app with `python app.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
 
 from dash import Dash, html, dash_table , dcc
-import pandas as pd
 from dash import Dash, dcc, html, Input, Output
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
-from urllib.request import urlopen
 import json
-
-import base64
-
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
 
 
 
@@ -84,8 +69,7 @@ app.layout = html.Div([
 
     html.Div([
         html.H2(children='Overview of query execution time by scale factor and cluster size based on the selected query ID', style={'text-align':'left'}),
-        dcc.Dropdown(id='dropdown_query',options=['Query_2','Query_3','Query_4', 'Query_7',
-         'Query_9','Query_13'], multi=False,
+        dcc.Dropdown(id='dropdown_query',options=['Query_4', 'Query_7','Query_9','Query_13'], multi=False,
          value="Query_7", style={'width':'200px','display':'inline-block','margin-right':40}, placeholder="Select the query"),
         html.Br(),
         dcc.Graph(id='query_scale_config_id1', figure={}),
@@ -99,6 +83,13 @@ app.layout = html.Div([
          ], multi=False,
          value="Scale_005", style={'width':'200px','display':'inline-block','margin-right':40}, placeholder="Select the database scale"),
         dcc.Graph(id='query_scale_config_id2', figure={})
+     ]),
+    html.Br(),
+    html.Div([
+        html.H2(children='Overview of the Percentage Improvement PI between 2 configuration', style={'text-align':'left'}),
+        html.Br(),
+        
+        dcc.Graph(id='pi_id', figure={})
      ]),
     html.Br(),
     ])
@@ -134,14 +125,24 @@ def query_time_by_scale_size_figure(query):
         fig.update_layout(
         yaxis_title="Execution time (s)",
         xaxis_title="Scale factor (%)",
-        title='Performance insight of BerlinMOD queries by scale factor and cluster size',
-        font=dict(size=18,color='Black')),
+        xaxis_tickmode='array',
+        xaxis_tickvals=[0,0.05,0.2,0.5,1],
+        #title='Performance insight of BerlinMOD queries by scale factor and cluster size',
+        #font=dict(size=18,color='Black')),
+        font=dict(size=18)),
         
+        #fig.update_xaxes(range = [0,1])
+        """xaxis=dict(
+                                title='Xaxis Name',
+                                tickmode='array')
+                                fig.update_xaxes(fixedrange=True)
+                                """
         res =[fig]
 
 
        
     return res
+
 title=dict(text="GDP-per-capita", font=dict(size=50), automargin=True, yref='paper')
 
 @app.callback(
@@ -155,24 +156,109 @@ def all_queries(scale):
         config4=[ conf[1][1] for conf in experiment.get(scale).items()]
         config8=[ conf[1][2] for conf in experiment.get(scale).items()]
         config16=[ conf[1][3] for conf in experiment.get(scale).items()]
-        print("SCALE",scale,"config 1 \n", config1," config2 \n",config4, 'config8\n',config8,'config16\n',config16)
+        #print("SCALE",scale,"config 1 \n", config1," config2 \n",config4, 'config8\n',config8,'config16\n',config16)
         
         figure={ 'data': [
-            {'x': ['Q2','Q3', 'Q4','Q7', 'Q9','Q13'], 'y': config1, 'type': 'bar', 'name': '1 node'},
-            {'x': ['Q2','Q3', 'Q4','Q7', 'Q9','Q13'], 'y': config4, 'type': 'bar', 'name': '4 nodes'},
-            {'x': ['Q2','Q3', 'Q4','Q7', 'Q9','Q13'], 'y': config8, 'type': 'bar', 'name': '8 nodes'},
-            {'x': ['Q2','Q3', 'Q4','Q7', 'Q9','Q13'], 'y': config16, 'type': 'bar', 'name': '16 nodes'},
+            {'x': [ 'Q4','Q7', 'Q9','Q13'], 'y': config1[2:], 'type': 'bar', 'name': '1 node'},
+            {'x': [ 'Q4','Q7', 'Q9','Q13'], 'y': config4[2:], 'type': 'bar', 'name': '4 nodes'},
+            {'x': [ 'Q4','Q7', 'Q9','Q13'], 'y': config8[2:], 'type': 'bar', 'name': '8 nodes'},
+            {'x': [ 'Q4','Q7', 'Q9','Q13'], 'y': config16[2:], 'type': 'bar', 'name': '16 nodes'},
               
         ],
         'layout': {
-            'title':'Query execution time grouped by cluster size and database scale factor',
+            #'title':'Query execution time grouped by cluster size and database scale factor',
             'xaxis':{'title':'Query id'},
             'yaxis':{'title':'Execution time (s)'},
-            'font':{'size':18,'color':'black'}}
+            'font':{'size':20}}
         } 
    
+
+
     return [figure]
-   
+
+
+
+config_0={
+ 'Query_4':[99.84, 339.87, 778.88, 743.5], 'Query_7': [15.89, 60.28, 134.68, 211.13],
+ 'Query_9':[144.44, 483.62, 915.93, 1061.65], 'Query_13':[115.88, 431.8, 990.35, 1003.48] }
+config_1={
+ 'Query_4':[27.19, 99.27, 226.98, 446.65], 'Query_7': [2.79 , 10.1, 25.1, 45.47],
+ 'Query_9':[38.84, 127.85, 286.31, 631.86], 'Query_13':[20.75, 78.99, 179.99, 284.33] }
+config_2={
+ 'Query_4':[15.29, 51.47, 115.45, 205.25], 'Query_7': [1.48, 6.17, 12.99, 21.93],
+ 'Query_9':[16.31, 59.01, 131.76, 287.9], 'Query_13':[11.37, 39.59, 89.61, 143.75] }
+
+config_3={
+ 'Query_4':[8.36, 39.44, 72.01, 121.8], 'Query_7': [0.91, 3.89, 8.18, 13.02],
+ 'Query_9':[10.15, 35.92, 79.31, 172.35], 'Query_13':[7.18, 27.31, 52.97, 78.57] }
+
+@app.callback(
+    [Output(component_id='pi_id', component_property='figure'),],
+    [#Input(component_id='dropdown_config1', component_property='value'),
+    #Input(component_id='dropdown_config2', component_property='value'),
+    Input(component_id='dropdown_scale', component_property='value'),]
+)
+def compute_pi(scale):
+
+     
+    gain_conf1_conf2={
+  'Query_4':[((a-b)/a)*100 for a,b in zip(config_0['Query_4'],config_1['Query_4'])],
+  'Query_7':[((a-b)/a)*100 for a,b in zip(config_0['Query_7'],config_1['Query_7'])] ,
+  'Query_9':[((a-b)/a)*100 for a,b in zip(config_0['Query_9'],config_1['Query_9'])],
+  'Query_13':[((a-b)/a)*100 for a,b in zip(config_0['Query_13'],config_1['Query_13'])] }
+    
+    gain_conf1_conf3={
+  'Query_4':[((a-b)/a)*100 for a,b in zip(config_0['Query_4'],config_2['Query_4'])],
+  'Query_7':[((a-b)/a)*100 for a,b in zip(config_0['Query_7'],config_2['Query_7'])] ,
+  'Query_9':[((a-b)/a)*100 for a,b in zip(config_0['Query_9'],config_2['Query_9'])],
+  'Query_13':[((a-b)/a)*100 for a,b in zip(config_0['Query_13'],config_2['Query_13'])] }
+    
+    gain_conf1_conf4={
+  'Query_4':[((a-b)/a)*100 for a,b in zip(config_0['Query_4'],config_3['Query_4'])],
+  'Query_7':[((a-b)/a)*100 for a,b in zip(config_0['Query_7'],config_3['Query_7'])] ,
+  'Query_9':[((a-b)/a)*100 for a,b in zip(config_0['Query_9'],config_3['Query_9'])],
+  'Query_13':[((a-b)/a)*100 for a,b in zip(config_0['Query_13'],config_3['Query_13'])] }
+    
+
+    print("config 1...\n",config_0)
+    print("config 1...\n",config_1)
+    if scale=="Scale_005":
+        idx=0
+    elif scale=="Scale_02":
+        idx=1
+    elif scale=="Scale_05":
+        idx=2
+    elif scale=="Scale_1":
+        idx=3
+
+
+    print("The result.4 node..\n",[gain_conf1_conf2['Query_4'][idx],gain_conf1_conf2['Query_7'][idx],gain_conf1_conf2['Query_9'][idx],gain_conf1_conf2['Query_13'][idx]  ])
+    
+    print("The result..8 nodes.\n",[gain_conf1_conf3['Query_4'][idx],gain_conf1_conf3['Query_7'][idx],gain_conf1_conf3['Query_9'][idx],gain_conf1_conf3['Query_13'][idx]  ])
+
+    print("The result..16 nodes.\n", [gain_conf1_conf4['Query_4'][idx],gain_conf1_conf4['Query_7'][idx],gain_conf1_conf4['Query_9'][idx],gain_conf1_conf4['Query_13'][idx]  ],)
+    
+
+
+    fig= go.Figure()
+    fig.add_trace(go.Scatter(x=[ 'Q4','Q7', 'Q9','Q13'], y=[gain_conf1_conf2['Query_4'][idx],gain_conf1_conf2['Query_7'][idx],gain_conf1_conf2['Query_9'][idx],gain_conf1_conf2['Query_13'][idx]  ],
+                        mode='lines+markers',
+                        name='4 nodes')),
+    fig.add_trace(go.Scatter(x=[ 'Q4','Q7', 'Q9','Q13'], y=[gain_conf1_conf3['Query_4'][idx],gain_conf1_conf3['Query_7'][idx],gain_conf1_conf3['Query_9'][idx],gain_conf1_conf3['Query_13'][idx]  ],
+                        mode='lines+markers',
+                        name='8 nodes'))
+    fig.add_trace(go.Scatter(x=[ 'Q4','Q7', 'Q9','Q13'], y=[gain_conf1_conf4['Query_4'][idx],gain_conf1_conf4['Query_7'][idx],gain_conf1_conf4['Query_9'][idx],gain_conf1_conf4['Query_13'][idx]  ],
+                        mode='lines+markers',
+                        name='16 nodes'))
+    fig.update_layout(
+        yaxis_title="Percentage improvement PI (%)",
+        xaxis_title="Query id",
+        #title='Performance insight of BerlinMOD queries by scale factor and cluster size',
+        #font=dict(size=18,color='Black')),
+        font=dict(size=18)),
+    return [fig]
+
+
 if __name__ == '__main__':
 	app.run_server(debug=True,threaded=True)
 

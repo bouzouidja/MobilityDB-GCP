@@ -14,11 +14,6 @@ from kubernetes.stream import stream
 
 
 
-project_id="distributed-postgresql-82971" #from gcloud config configurations list
-
-zone = "europe-west1-c" #from gcloud container clusters list
-cluster_id="mobilitydb-cluster-1" #from gcloud container clusters list
-node_pool_id="mobilitydb-node-pool"
 POSTGRES_DB= os.environ['POSTGRES_DB']
 POSTGRES_USER= os.environ['POSTGRES_USER']
 POSTGRES_PORT= os.environ['POSTGRES_PORT']
@@ -285,10 +280,9 @@ def sample_stop_cluster(cluster_id,zone,project_id):
         # Make the request
     resize_response = gcp_client.set_node_pool_size(request=request)
     operation_id=resize_response.name
-    print("Settting up the new size...",operation_id)
+    print("The cluster "+str(cluster_id)+" will be stopped...")
     while True:
             operations_status= sample_get_operation(gcp_client,zone,project_id,operation_id)
-            print("The cluster"+str(cluster_id)+"will be stopped...",str(operations_status).split('.')[-1])
             if str(operations_status).split('.')[-1] == 'DONE':
                 print("Operation finished...",operations_status)
                 res = True
@@ -321,10 +315,10 @@ def sample_start_cluster(cluster_id,zone,project_id,num_nodes):
         # Make the request
     resize_response = gcp_client.set_node_pool_size(request=request)
     operation_id=resize_response.name
-    print("Settting up the new size...",operation_id)
+    print("The cluster "+str(cluster_id)+" will be started......")
     while True:
             operations_status= sample_get_operation(gcp_client,zone,project_id,operation_id)
-            print("The cluster will be started...",str(operations_status).split('.')[-1])
+            #print("",str(operations_status).split('.')[-1])
             if str(operations_status).split('.')[-1] == 'DONE':
                 print("Operation finished...",operations_status)
                 res = True
@@ -347,39 +341,44 @@ parser.add_argument('start',
 parser.add_argument('stop', 
                         help='Stop Citus cluster')
 """
-parser.add_argument('action', choices=['start', 'stop', 'resize'],
-                        help='Cluster management commands')
+parser.add_argument('action', choices=['init','start', 'stop', 'resize','delete'],
+                        help='Citus cluster management commands.')
     
 
-parser.add_argument('--cluster-name', dest='cluster_name', required=True,
+parser.add_argument('--cluster-name', dest='cluster_name',
                         help='Name of the cluster.')
 
-parser.add_argument('--cluster-zone', dest='cluster_zone', required=True,
+parser.add_argument('--cluster-zone', dest='cluster_zone',
                         help='The zone of the cluster.')
 
-parser.add_argument('--cluster-project', dest='cluster_project', required=True,
+parser.add_argument('--cluster-project', dest='cluster_project',
                         help='Project name cluster.')
 
 parser.add_argument('--num-nodes', dest='num_nodes',
-                        help='Number of nodes to resize the cluster.')
+                        help='The desired number of nodes to resize the cluster.')
     
 args = parser.parse_args()
 
 
 
 # Decide which Daemon action to do
-if args.action=="start":
-    if args.num_nodes:
+if args.action=="init":
+    
+    os.popen('sh ./citus_cluster_initialization.sh')
+elif args.action=="start":
+    if args.num_nodes and args.cluster_name and args.cluster_zone and args.cluster_project and args.num_nodes:
         #scale_out(args.num_nodes)
         #
         sample_start_cluster(args.cluster_name,args.cluster_zone, args.cluster_project,int(args.num_nodes))
     else:
         print("Number of nodes not specified in the argument --num-nodes")
-elif args.action=="stop":        
+elif args.action=="stop" and args.cluster_name and args.cluster_zone and args.cluster_project :        
         sample_stop_cluster(args.cluster_name,args.cluster_zone, args.cluster_project)
 
 elif args.action=="resize":
-    if args.num_nodes:
+    if args.num_nodes and args.cluster_name and args.cluster_zone and args.cluster_project and args.num_nodes:
         sample_set_node_pool_size(args.cluster_name,args.cluster_zone, args.cluster_project,int(args.num_nodes))
     else:
         print("Number of nodes not specified in the argument --num-nodes")
+elif args.action=="delete":
+        os.popen('sh ./citus_cluster_deletion.sh')
