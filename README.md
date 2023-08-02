@@ -264,9 +264,6 @@ minikube -p mobilitydb-multi-node kubectl -- create -f coordinator-deployment.ya
 
 
 ```
-
-# GKE cluster management
-
 - Create Kubernete cluster on GCP using gcloud command
 
 ```bash
@@ -404,7 +401,7 @@ Before running the geo-spatial queries, we need first to distribute the data acr
 
 
 
-# Scaling Citus cluster
+## Scaling Citus cluster
 
 - Scaling pods 
 ```bash
