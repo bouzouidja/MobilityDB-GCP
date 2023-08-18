@@ -48,10 +48,7 @@ COPY pg_healthcheck wait-for-manager.sh /
 RUN chmod +x /wait-for-manager.sh
 RUN chmod +x /pg_healthcheck
 
-# entry point unsets PGPASSWORD, but we need it to connect to workers
+# entry point unsets PGPASSWORD
 # https://github.com/docker-library/postgres/blob/33bccfcaddd0679f55ee1028c012d26cd196537d/12/docker-entrypoint.sh#L303
 RUN sed "/unset PGPASSWORD/d" -i /usr/local/bin/docker-entrypoint.sh
-
-
-
 HEALTHCHECK --interval=4s --start-period=6s CMD ./pg_healthcheck
