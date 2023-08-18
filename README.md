@@ -6,6 +6,7 @@ In this section, we will outline the various steps required to scale a moving ob
 The following figure presents an architectural overview of the Citus cluster within the GKE product.
 
 ![alt text](./docs/src/stack-citus-management.drawio.png)
+<img src="./docs/src/stack-citus-management.drawio.png" width="48">
 It is recommended to scale out the cluster when the database becomes large in order to optimize performance. Scaling out involves adding more nodes to the existing cluster. Since PostgreSQL tables are distributed across GKE worker nodes through the Citus extension, adding new nodes triggers the redistribution of tables to evenly distribute partitions across the cluster that incorporates the new nodes. In other words, adding more nodes translates to an increase in computational capacity, including CPU cores and memory. In the event of scale-out or scale-in operations, it is essential to execute the following command to ensure data consistency. This command triggers a Python script designed to automate the redistribution of the cluster when new nodes are added and to manage data evacuation in the event of node deletion.
 The following figure illustrate the scale-out operation result triggered by the Python command.
 
