@@ -138,29 +138,19 @@ gcloud container clusters list --project YOUR_GCP_PROJECT_NAME
 ```
 - install kubectl to manage GCP K8s cluster if it not found in my local machine 
 ```bash
-
 sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
-
 #kubectl version
 gke-gcloud-auth-plugin --version
-
 ## update the kubectl env var
 export USE_GKE_GCLOUD_AUTH_PLUGIN=True
-
 source ~/.bashrc
-
-
 ```
 - Interact with your cluster using Kubectl
 ```bash
-
 #get the credential first in order to connect to you GKE 
 gcloud container clusters get-credentials mobilitydb-cluster-1 --zone us-central1-c --project argon-system-263617
-
 ##view your GKE nodes
 kubectl get node -o wide
-
-
 ```
 ## Environement variable
 TO avoid re-entring the arguments each time when using the Python command, it could be usefull to setting up the arguments as environments variables.
@@ -169,7 +159,6 @@ export POSTGRES_USER=db-user
 export POSTGRES_PASSWORD=db-password
 export POSTGRES_DB=db-name
 export POSTGRES_PORT=db-port
-
 ```
 ## PostgreSQL deployment
 After setting up the GKE cluster resources, we can proceed to deploying the PostgreSQL server with their extension needed, MobilityDB and Citus.
