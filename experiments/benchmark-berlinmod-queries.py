@@ -76,8 +76,8 @@ list_queries=[{'Q2':"\
         "},
         ]
 
-POSTGRES_USER="docker"
-POSTGRES_PASSWORD="docker"
+POSTGRES_USER="USER"
+POSTGRES_PASSWORD="*****"
 POSTGRES_HOST="172.17.0.2"
 POSTGRES_PORT="30001"
 

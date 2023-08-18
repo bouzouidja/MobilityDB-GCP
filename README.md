@@ -1,14 +1,132 @@
-# Scaling moving object database on Google Kubernetes Engine
-In this repository we define an API that allows scaling moving object database in Google Kubernetes Engine (GKE) within GCP. PostgreSQL server is used as an RDBMS accompanied with MobilityDB extension that support manipulation of moving object data efficiently. For more information about MobilityDB extension for PostgreSQL, you could view [here](https://github.com/MobilityDB) the implementation and the documention.
-In addition Citus data extension for PostgreSQL is used in order to partitionning tables and distributing SQL queries over a group of PostgreSQL nodes efficiently. For more information about Citus extension, [here](https://github.com/citusdata/citus) you can find the entire implementation.    
-
-
-
-# Get started
-In this part, we will introduce the different steps needed in order to scaling moving object database in GCP by providing such a manual that describe the commands line in needed in each phase. We start first by creating our GKE cluster by allocating some GCP resources and then we deploy PostgreSQL server accomodated with MobilityDB and Citus extension, and then we proceed to initialize Citus cluster by setting up the connexions between the Citus nodes order to partitionning the big tables and distributing the partitions and the queries across several cluster's nodes. At the end we show the API commands needed to scaling-out or scaling-in Citus cluster in order to idealize the performance.  
-## GKE cluster initialization
+## Scaling Moving Object Database on Google Kubernetes Engine    
+This repository defines an API that enables the scaling of a moving object database within Google Kubernetes Engine (GKE) on Google Cloud Platform (GCP). The PostgreSQL server serves as the relational database management system (RDBMS), supplemented by the MobilityDB extension that efficiently handles the manipulation of moving object data. To learn more about the MobilityDB extension for PostgreSQL, you can refer to the implementation and documentation available at this [link](https://github.com/MobilityDB).
+Furthermore, the Citus data extension for PostgreSQL is incorporated to facilitate table partitioning and the efficient distribution of SQL queries across a group of PostgreSQL nodes. To delve into details about the Citus extension, you can explore the complete implementation provided [here](https://github.com/citusdata/citus).
+## Get Started
+In this section, we will outline the various steps required to scale a moving object database in GCP. We'll provide a comprehensive guide that details the necessary command-line instructions for each phase. Our process begins with the creation of a GKE cluster, wherein we allocate specific GCP resources. Subsequently, we deploy a PostgreSQL server, complete with the MobilityDB and Citus extensions. Following this, we move forward to initializing the Citus cluster, a step that involves establishing connections between Citus nodes to enable the partitioning of large tables and the distribution of partitions and queries across multiple nodes within the cluster.
+Concluding the process, we will present the API commands necessary for scaling out or scaling in the Citus cluster, aimed at optimizing performance.
+## Tutorial
+In this tutorial, we will create a workflow that outlines the necessary steps to deploy a GKE cluster, aiming to establish a distributed environment for a PostgreSQL database.
+\section{GKE cluster initialization}
+First and foremost, you need to possess a Google account to link it within the GCP console. If you already have an existing Google account, you can associate it with GCP by signing in here[](https://console.cloud.google.com).
+Once you have a GCP account, it's necessary to acquire credits to utilize GCP services through the billing account. For further information about GCP credits and billing accounts, please refer to this link[](https://console.cloud.google.com/billing).
+Next, the subsequent steps detail the process of setting up a GKE cluster.
+- Create GCP project
+Once you have created the billing account with active credits on it, create GCP project and associate the billing account with it. The project can be created through the GCP console or by commands line from your local machine. You can find the full documentation on how to create GCP project in this link[](https://cloud.google.com/resource-manager/docs/creating-managing-projects?hl=en#gcloud}).
+The following command creates a GCP project with the desired PROJECT_ID.
+```bash
+gcloud projects create PROJECT_ID
+```  
+- Enable GKE product
+Enabling GKE product through the activation process here[](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) 
+- Create GKE cluster.
+Creating GKE cluster with the full understanding of it parameters, you can visit the documentation in this link[](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#enable_on_cluster). Or use the following command with the necessary parameters for our cluster.
+```bash 
+gcloud container clusters create mobilitydb-cluster --zone europe-west1-c
+--node-pool mobilitydb-node-pool --machine-type e2-standard-4
+--disk-type pd-balanced --num-nodes 4
+```
+- Connect to GKE cluster.
+We assume that the kubectl Kubernetes client is already installed. 
+```bash
+# Get the credentials of the cluster
+gcloud container clusters get-credentials mobilitydb-cluster
+--zone europe-west1-c --project PROJECT_ID
+# View your cluster information
+gcloud container clusters describe mobilitydb-cluster-1
+--zone europe-west1-c 
+# You should see your cluster created after few 
+# minutes in your GCP console
+# View your cluster nodes information via the kubectl command
+kubectl get node -o wide
+```
+## Citus Cluster Initialization
+Once the GKE cluster is established, you can deploy our cloud-native solution to initialize the Citus cluster. To accomplish this, you must first perform the following operations.
+- Clone MobilityDB-GCP solution.
+```bash       
+git clone https://github.com/MobilityDB/MobilityDB-GCP
+```
+- Metadata configuration
+Adapt the file postgres-secret.yaml to update your confidential information including POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_DB and POSTGRES_PORT.
+- Export your environment variables
+```bash   
+export POSTGRES_USER=your-user
+export POSTGRES_PASSWORD=your-password
+export POSTGRES_DB=your-db-name
+export POSTGRES_PORT=30001
+source ~/.bashrc
+```
+- Clone the cloud native solution in the docker registry
+```bash
+# Create the docker registry in GCP artifact registry
+gcloud artifacts repositories create  repo-test --repository-format=docker
+--location=europe-west1 --description==testing --immutable-tags --async
+# Pull the cloud native docker image from the docker hub
+docker pull bouzouidja/mobilitydb-cloud:latest
+# Tag the pulled docker image mobilitydb-cloud into the docker
+# registry repo-test
+docker tag bouzouidja/mobilitydb-cloud:latest europe-west1-docker.pkg.dev/
+PROJECT_ID/repo-test/mobilitydb-cloud:latest
+# Push the taged image to the  repo-test docker registry
+docker push bouzouidja/mobilitydb-cloud:latest europe-west1-docker.pkg.dev/
+PROJECT_ID/repo-test/mobilitydb-cloud:latest
+```
+- Open the port 30001 to accept requests from the outside of the GKE cluster.
+```bash
+gcloud compute firewall-rules create mobilitydb-node-port
+--project PROJECT_ID --allow tcp:30001
+```
+- Deploy the application YAML files.
+```bash
+# Execute those commands simultaneously, and wait until the Pods will
+# be in the running state
+kubectl create -f postgres-secret.yaml
+kubectl create -f coordinator-deployment.yaml
+kubectl create -f workers-deployment.yaml
+# View your Pods
+kubectl get pods -o wide
+# You should see the coordinator Pod and the workers Pods running
+```
+- Test your PostgreSQL within GKE cluster.    
+```bash
+# Access to your PostgreSQL database from the coordinator using
+# the psql client
+psql -h 34.34.151.202 -U docker -p 30001 -d mobilitydb
+mobilitydb=#
+```
+34.34.151.202 is the external IP address of the coordinator node in my created cluster, it can be found using the command.
+```bash
+kubectl get node -o wide
+NAME STATUS ROLES AGE VERSION  INTERNAL-IP EXTERNAL-IP      OS-IMAGE
+KERNEL-VERSION  CONTAINER-RUNTIME
+gke-mobilitydb-clust-mobilitydb-node--77a55075-cssr   Ready    <none>   121m   v1.27.3-gke.100   10.132.15.217   34.34.151.202    Container-Optimized OS
+from Google   5.15.109+        containerd://1.7.0
+gke-mobilitydb-clust-mobilitydb-node--77a55075-l2wd   Ready    <none>   121m   v1.27.3-gke.100   10.132.15.220   35.187.85.28     Container-Optimized OS
+from Google   5.15.109+        containerd://1.7.0
+gke-mobilitydb-clust-mobilitydb-node--77a55075-ldgc   Ready    <none>   121m   v1.27.3-gke.100   10.132.15.219   34.77.253.167    Container-Optimized OS
+from Google   5.15.109+        containerd://1.7.0
+gke-mobilitydb-clust-mobilitydb-node--77a55075-wcl8   Ready    <none>   121m   v1.27.3-gke.100   10.132.15.218   35.205.205.195   Container-Optimized OS
+from Google   5.15.109+        containerd://1.7.0
+```
+- View the worker nodes information.         
+```bash       
+mobilitydb=# SELECT * from citus_get_active_worker_nodes();
+ node_name  | node_port 
+------------+-----------
+ 10.48.1.15 |      5432
+ 10.48.2.8  |      5432
+ 10.48.3.7  |      5432
+(3 rows)
+```
+## Horizontal Scaling
+It is recommended to scale out the cluster when the database becomes large in order to optimize performance. Scaling out involves adding more nodes to the existing cluster. Since PostgreSQL tables are distributed across GKE worker nodes through the Citus extension, adding new nodes triggers the redistribution of tables to evenly distribute partitions across the cluster that incorporates the new nodes. In other words, adding more nodes translates to an increase in computational capacity, including CPU cores and memory. In the event of scale-out or scale-in operations, it is essential to execute the following command to ensure data consistency. This command triggers a Python script designed to automate the redistribution of the cluster when new nodes are added and to manage data evacuation in the event of node deletion.
+```bash       
+# Make sure to export your environment variables, including POSTGRES_USER,
+# POSTGRES_PASSWORD, POSTGRES_PORT and POSTGRES_DB. 
+python citus_cluster_management.py resize --cluster-name mobilitydb-cluster-1
+--cluster-zone europe-west1-b --cluster-project PROJECT_ID --num-nodes 8
+# Waiting the completion of all operations.
+```
 The first phase that need to be done, is the initialisation of the infrastructure that support our moving object database. GKE cluster is a product within the Google cloud platform included in the compute service.
-
 - Create GKE cluster
 ```bash
 
@@ -44,7 +162,6 @@ kubectl get node -o wide
 
 
 ```
-
 ## Environement variable
 TO avoid re-entring the arguments each time when using the Python command, it could be usefull to setting up the arguments as environments variables.
 ```bash
@@ -54,389 +171,5 @@ export POSTGRES_DB=db-name
 export POSTGRES_PORT=db-port
 
 ```
-
 ## PostgreSQL deployment
 After setting up the GKE cluster resources, we can proceed to deploying the PostgreSQL server with their extension needed, MobilityDB and Citus.
-
-
-
-- Deploy on your GKE
-
-```bash
-kubectl create -f postgres-config.yaml
-kubectl create -f postgres-secret.yaml
-kubectl create -f postgres-deployment.yaml
-```
-Or you can run the init phase using the pre-defined Python code
-```bash
-python citus_cluster_management init
-```
-
-- Delete Kubernetes ressources 
-```bash
-kubectl delete -f coordinator-deployment.yaml
-```
-- delete the cluster 
-
-```bash
-
-gcloud container clusters delete mobilitydb-cluster \
-    --region europe-west1
-
-```
-
-
-- In order expose PostgreSQL as service from GKE, you may open a port 30001 for example
-```bash
-
-
-gcloud compute firewall-rules create mobilitydb-node-port   --project distributed-postgresql-82971  --allow tcp:30001
-
-```
-
-
-- Registry managment
-
-
-
-```bash
-
-# list images on container registry
-gcloud container images list
-
-## ls images on remote registry using gcrane
-gcrane ls gcr.io/argon-system-263617
-
-## copy images from 2 remote registry using gcrane
-gcrane cp gcr.io/argon-system-263617/mobilitydb-cloud europe-west1-docker.pkg.dev/argon-system-263617/gcp-registry/mobilitydb-cloud
-
-gcrane cp europe-west1-docker.pkg.dev/distributed-postgresql-82971/sidahmed-gcp-registry/mobilitydb-cloud
-#view which registry i have access
-cat ~/.docker/config.json
-
-#tag an images
-docker tag europe-west1-docker.pkg.dev/distributed-postgresql-82971/sidahmed-gcp-registry/mobilitydb-cloud/mobilitydb-cloud:latest
-
-
-## push the tagged images to the registry
-docker push europe-west1-docker.pkg.dev/distributed-postgresql-82971/sidahmed-gcp-registry/mobilitydb-cloud
-
-# describe images on artifact registry
-gcloud artifacts repositories describe gcp-registry --project=argon-system-263617 --location=europe-west1
-
-### resize the clustr to stop all ressources
-
-gcloud container clusters resize mobilitydb-cluster-1 --zone us-central1-c --node-pool mobilitydb-pool --num-nodes 0
-
-
-kubectl get nodes --show-labels
-# label the coordinator node 
-kubectl label nodes gke-mobilitydb-cluste-mobilitydb-pool-fc867a69-1brb nodetype=worker
-
-# view quota info for my region
-https://console.cloud.google.com/iam-admin/quotas?usage=USED&project=argon-system-263617
-gcloud compute regions describe us-central1
-
-gcloud compute firewall-rules create test-node-port     --allow tcp:NODE_PORT
-gcloud compute firewall-rules create mobilitydb-2-node-port     --allow tcp:30002
-
-##
-  metric: SSD_TOTAL_GB
-  usage: 90.0
-- limit: 100.0
-
-gcloud compute project-info describe --project argon-system-263617
-
-## copy container images remotely
-gcrane cp GCR-LOCATION.gcr.io/PROJECT/IMAGE \
-AR-LOCATION.pkg.dev/PROJECT/REPOSITORY/IMAGE
-
-```
-
-
-## Citus cluster initialization
-
-
-```sql
-
-## Add workers..
-
-SELECT * from citus_add_node('$POD_IP', 5432);
-SELECT create_distributed_table('edges', 'id');
-
-SELECT citus_set_coordinator_host('10.0.1.7', 5432);
-SELECT create_reference_table('trips');
-
-## to remove local data form reference or distributed table
-SELECT truncate_local_data_after_distributing_table($$public.trips$$)
-
-## view linked workers
-SELECT * from citus_get_active_worker_nodes();
-## SHOW MORE DETAILS
-SELECT * FROM pg_dist_node;
-
-
-### Shards information 
-SELECT * FROM citus_shards;
-
-
-# Execute command on workers
-SELECT run_command_on_workers($cmd$ SHOW work_mem; $cmd$);
-
-# remove local data after distribution or referencing tables from disk 
-SELECT truncate_local_data_after_distributing_table($$public.periods$$)
- 
-### update the pod ip in pg_dist_node table when the pod is created
-select * from citus_update_node(123, 'new-address', 5432);
-# or ..
-select citus_update_node(nodeid, 'new-address', nodeport)
-  from pg_dist_node
- where nodename = 'old-address';
-
-
-```
-- Rebalancing shards
-```bash
-psql -h citus-coordinator -U $POSTGRES_USER -d $POSTGRES_DB --command=\"SELECT citus_rebalance_start();\"
-
-
-SELECT details FROM citus_rebalance_status();
-
-
-## Querying the size of all distributed tables
-SELECT table_name, table_size
-  FROM citus_tables;
-
-
-```
-- postgresql connection and psql client
-
-```bash
-minikube -p mobilitydb-gcp ip  ## this command show the ip of the host 
-kubectl get service postgres-service -o jsonpath='{.spec.ports[0].nodePort}' ### this command give you the port or NodePort
-psql -h 192.168.58.2 -U docker -p 30001 mobilitydb  # runu psql from extern 
-
-
-###change docker image refgistry from local to minikube cluster 
-eval $(minikube -p mobilitydb-gcp docker-env)
-## pull images inside the minikube image registry
-minikube -p mobilitydb-single-node ssh docker pull bouzouidja/mobilitydb-cloud:latest
-```
-
-- psql command for all postgresql server within the cluster (minikube-gcp)
-```bash
-psql -h 192.168.67.2 -U docker -p 30001 mobilitydb
-psql -h 192.168.67.3 -U docker -p 30001 mobilitydb
-psql -h 192.168.67.4 -U docker -p 30001 mobilitydb
-```
-psql -h 192.168.67.4 -U docker -p 30001 brussels SELECT * from citus_add_node('10.244.1.9', 5432);
-
-
-- Debug and logs :
-
-```bash
-#Use this 3 command to debug pods error  
-kubectl describe pod podname
-
-kubectl logs podname –all-containers
-
-kubectl get events --field-selector involvedObject.name=podname
-### watch Horizontal Pod Autoscaling
-kubectl get hpa citus-workers --watch
-
-### see docker images within the minikube node
-minikube -p mobilitydb-multi-node ssh docker images
-### access inside the minikube machine (node)
-minikube -p mobilitydb-single-node ssh
-
-
-### access inside docker container within a pods 
-kubectl exec -it pod_name bash
-
-```
-
-
-
-- Kubernetes cluster on multi-nodes
-
-
-```bash
-
-# deploy secret and configMap on the coordinator
-minikube -p mobilitydb-multi-node kubectl -- create -f postgres-secret.yaml 
-minikube -p mobilitydb-multi-node kubectl -- create -f postgres-config.yaml 
-
-
-# Deploy mobilitydb-cloud storage, pods and service on the coordinator 
-
-minikube -p mobilitydb-multi-node kubectl -- create -f coordinator-storage.yaml 
-
-minikube -p mobilitydb-multi-node kubectl -- create -f coordinator-deployment.yaml 
-
-## Deploy mobilitydb-cloud storage, pods and service on the workers
-
-
-```
-- Create Kubernete cluster on GCP using gcloud command
-
-```bash
-
-
-# Create a project if no existing project
-# Enable a billing plan and associated to the project
-# Enable the GKE service on https://console.cloud.google.com/apis/enableflow?apiid=container.googleapis.com
-
-# Authenticate to pulling up the credentials of your Google account in order to use the gcloud CLI 
-gcloud auth login
-
-```
-
-- Pushing moblititydb-cloud image to the artifact registry in GCP  
-
-We assume that an artifact registry is already created in GCP in a given region.
-https://console.cloud.google.com/artifacts/docker.
-After creating an artifact registry, you will get an ULR for your new registry for this format:LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
-Where:
-
-
-* LOCATION is the regional or multi-regional location of the repository where the image is stored, for example us-east1 or us.
-
-* PROJECT-ID is your Google Cloud console project ID. If your project ID contains a colon (:), see Domain-scoped projects.
-
-* REPOSITORY is the name of the repository where the image is stored.
-
-* IMAGE is the image's name. It can be different than the image's local name.
-
-
-- Pull mobilitydb-cloud locally from docker hub.
-```bash
-
-docker pull bouzouidja/mobilitydb-cloud:latest
-
-```
-- Tag mobilitydb-cloud with the URL of your new registry in GCP 
-
-
-```bash
-docker tag bouzouidja/mobilitydb-cloud LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
-
-```
-
-- Now we can push mobilitydb-cloud to the new registry
-
-
-```bash
-
-#First Authenticating to a repository
-gcloud auth configure-docker LOCATION-docker.pkg.dev
-
-docker push LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG
-
-
-```
-For the full manual on how to push images on GCP artifact registry, use this doc
-https://cloud.google.com/artifact-registry/docs/docker/pushing-and-pulling#cred-helper
-
-
-
-
-
-
-
-```bash
-#in a console:
-# connect to your coordinator node 
-# access postgres using kubectl
-kubectl exec citus-coordinator-0 -i -t -- psql -U docker -d brussels-s1
-psql -h 192.168.67.4 -U docker -p 30001 mobilitydb
-
-
-createdb -h localhost -p 5432 -U dbowner brussels
-# replace localhost with your database host, 5432 with your port,
-# and dbowner with your database user
-psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION hstore'
-# adds the hstore extension needed by osm2pgsql
-psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION MobilityDB CASCADE'
-# adds the PostGIS and the MobilityDB extensions to the database
-psql -h localhost -p 5432 -U dbowner -d brussels -c 'CREATE EXTENSION pgRouting'
-# adds the pgRouting extension
-```
-
-
-We should have all the following extensions in order to run the experiments
-
-![](/docs/prerequisite_extensions.png)
-
-- Loading the Map of Brussels
-
-```bash
-# in a console, go to the generatorHome then:
-osm2pgrouting -h 35.189.193.185  -U docker -W docker -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels.osm --dbname brussels-s1 -c ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/mapconfig_brussels.xml
-
-```
-
-
-- Simulation
-```bash
-
-
-osm2pgsql -c -H 34.34.151.202  -U docker -W  -P 30001 -d mobilitydb ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels.osm
-# loads all layers in the osm file, including the adminstrative regions
-psql -h 34.34.151.202  -U docker -d mobilitydb -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels_preparedata.sql
-# samples home and work nodes, transforms data to SRID 3857, does further data preparation
-psql -h 34.34.151.202  -U docker -d mobilitydb  -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/berlinmod_datagenerator.sql
-# adds the pgplsql functions of the simulation to the database
-
-
-# or you can directely restore a pre-generated geo-spatial databases
-
-
-```
-
-
-- Running the generator
-
-```bash
-
-psql -h  34.34.151.202 -U docker -d mobilitydb -p 30001 -c 'select berlinmod_generate(scaleFactor := 0.003)'
-###dump your generated database
-
-pg_dump -h 172.17.0.5  -U docker -p 5432 -d brussels-s1 -f Desktop/Thesis_Work/berlinmod_geo_1_backup.dump 
-# calls the main pgplsql function to start the simulation
-
-
-```
-
-- Exploring the data generated>>> SQL queries
-
-Before running the geo-spatial queries, we need first to distribute the data across the node using Citus queries
-
-
-
-
-## Scaling Citus cluster
-
-- Scaling pods 
-```bash
-kubectl scale statefulsets citus-workers --replicas=7
-```
-
-```bash
-### Make sure that api-server service is installed without missing endpoint
-
-kubectl get apiservices
-
-# get the components file 
-wget https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.5.0/components.yaml
-
-## edit the file and add the flag - --kubelet-insecure-tls
-- --kubelet-insecure-tls
-###
-```
-
-- Monitor the workload by watch command
-
-```bash
-kubectl get  hpa mobilitydb-cloud --watch
-
-```
