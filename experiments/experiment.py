@@ -92,6 +92,24 @@ app.layout = html.Div([
         dcc.Graph(id='pi_id', figure={})
      ]),
     html.Br(),
+    html.Br(),
+    html.Div([
+        html.H2(children='AIS benchmark', style={'text-align':'left'}),
+        html.Br(),
+        
+        dcc.Graph(id='ais_bench_id', figure={})
+     ]),
+    html.Br(),
+    html.Br(),
+    html.Div([
+        html.H2(children='AIS benchmark per query', style={'text-align':'left'}),
+        html.Br(),
+        dcc.Dropdown(id='ais_query',options=['Query1', 'Query2','Query3'], multi=False,
+         value="Query1", style={'width':'200px','display':'inline-block','margin-right':40}, placeholder="Select the AIS query"),
+
+        dcc.Graph(id='ais_bench_per_query', figure={})
+     ]),
+    html.Br(),
     ])
 
 
@@ -172,8 +190,6 @@ def all_queries(scale):
             'font':{'size':20}}
         } 
    
-
-
     return [figure]
 
 
@@ -237,9 +253,6 @@ def compute_pi(scale):
     print("The result..8 nodes.\n",[gain_conf1_conf3['Query_4'][idx],gain_conf1_conf3['Query_7'][idx],gain_conf1_conf3['Query_9'][idx],gain_conf1_conf3['Query_13'][idx]  ])
 
     print("The result..16 nodes.\n", [gain_conf1_conf4['Query_4'][idx],gain_conf1_conf4['Query_7'][idx],gain_conf1_conf4['Query_9'][idx],gain_conf1_conf4['Query_13'][idx]  ],)
-    
-
-
     fig= go.Figure()
     fig.add_trace(go.Scatter(x=[ 'Q4','Q7', 'Q9','Q13'], y=[gain_conf1_conf2['Query_4'][idx],gain_conf1_conf2['Query_7'][idx],gain_conf1_conf2['Query_9'][idx],gain_conf1_conf2['Query_13'][idx]  ],
                         mode='lines+markers',
@@ -259,6 +272,119 @@ def compute_pi(scale):
     return [fig]
 
 
+
+@app.callback(
+    [Output(component_id='ais_bench_id', component_property='figure'),],
+    [Input(component_id='dropdown_scale', component_property='value')]
+)
+def ais_queries(scale):
+    #print("SCALE", experiment[scale].get('Query_2'))
+    """if scale:
+                        config1=[ conf[1][0]  for conf in experiment.get(scale).items()]
+                        config4=[ conf[1][1] for conf in experiment.get(scale).items()]
+                        config8=[ conf[1][2] for conf in experiment.get(scale).items()]
+                        config16=[ conf[1][3] for conf in experiment.get(scale).items()]
+                        #print("SCALE",scale,"config 1 \n", config1," config2 \n",config4, 'config8\n',config8,'config16\n',config16)
+                    
+    """
+    figure={ 'data': [
+            {'x': [ 'Q1','Q2', 'Q3'], 'y': [782.56,122.56,720.81], 'type': 'bar', 'name': '1 node'},
+            {'x': [ 'Q1','Q2', 'Q3'], 'y': [448.32,43.83,456.34], 'type': 'bar', 'name': '4 nodes'},
+            {'x': [ 'Q1','Q2', 'Q3'], 'y': [179.03,32.08,192.2], 'type': 'bar', 'name': '8 nodes'},
+            {'x': [ 'Q1','Q2', 'Q3'], 'y': [80.09,10.95,116.72], 'type': 'bar', 'name': '16 nodes'},
+              
+        ],
+        'layout': {
+            #'title':'Query execution time grouped by cluster size and database scale factor',
+            'xaxis':{'title':'Query id'},
+            'yaxis':{'title':'Execution time (s)'},
+            'font':{'size':20}}
+        } 
+    return [figure]
+
+
+
+
+Query1=[782.56,448.32,179.03, 80.09]
+Query2=[122.56,43.83,32.08,10.95]
+Query3=[720.81,456.34,192.2,116.72]
+
+@app.callback(
+    [Output(component_id='ais_bench_per_query', component_property='figure'),],
+    [Input(component_id='ais_query', component_property='value'),]
+)
+def ais_benchmark_exec_time_per_query(query):
+    
+    res=False
+    #fig= go.Figure()
+    """if query=='Query1':
+                    
+                    fig.add_trace(go.Scatter(x=[1,4,8,16], y=Query1,
+                                    mode='lines+markers',
+                                    )),
+                elif query=='Query2':
+                    fig.add_trace(go.Scatter(x=[1,4,8,16], y=Query2,
+                                    mode='lines+markers',
+                                    )),
+                else:
+                    fig.add_trace(go.Scatter(x=[1,4,8,16], y=Query3,
+                                    mode='lines+markers',
+                                    )),
+    """
+
+    fig= go.Figure()
+    fig.add_trace(go.Scatter(x=['Q1','Q2', 'Q3'], y=[782.56,122.56,720.81 ],
+                        mode='lines+markers',
+                        name='1 nodes')),
+    
+    fig.add_trace(go.Scatter(x=['Q1','Q2', 'Q3'], y=[448.32,43.83,456.34],
+                        mode='lines+markers',
+                        name='4 nodes')),
+    fig.add_trace(go.Scatter(x=['Q1','Q2', 'Q3'], y=[179.03,32.08,192.2],
+                        mode='lines+markers',
+                        name='8 nodes'))
+    fig.add_trace(go.Scatter(x=['Q1','Q2', 'Q3'], y=[80.09,10.95,116.72],
+                        mode='lines+markers',
+                        name='16 nodes'))
+    fig.update_layout(
+        yaxis_title="Execution Time (s)",
+        xaxis_title="Query id",
+        #title='Performance insight of BerlinMOD queries by scale factor and cluster size',
+        #font=dict(size=18,color='Black')),
+        font=dict(size=18)),
+    """fig.add_trace(go.Scatter(x=[1,4,8,16], y=config_1[query],
+                                                mode='lines+markers',
+                                                name='4 nodes'))
+                                fig.add_trace(go.Scatter(x=[0.05, 0.2,0.5, 1], y=config_2[query],
+                                                mode='lines+markers',
+                                                name='8 nodes'))
+                                fig.add_trace(go.Scatter(x=[0.05, 0.2,0.5, 1], y=config_3[query],
+                                                mode='lines+markers',
+                                                name='16 nodes'))
+    
+    fig.update_layout(
+        yaxis_title="Execution time (s)",
+        xaxis_title="Cluster size",
+        xaxis_tickmode='array',
+        xaxis_tickvals=[1,4,8,16],
+        #title='Performance insight of BerlinMOD queries by scale factor and cluster size',
+        #font=dict(size=18,color='Black')),
+        font=dict(size=18)),
+    """    
+    #fig.update_xaxes(range = [0,1])
+    """xaxis=dict(
+                                title='Xaxis Name',
+                                tickmode='array')
+                                fig.update_xaxes(fixedrange=True)
+    """
+    
+    res =[fig]
+
+
+       
+    return res
+
+
 if __name__ == '__main__':
-	app.run_server(debug=True,threaded=True)
+    app.run_server(debug=True,threaded=True)
 

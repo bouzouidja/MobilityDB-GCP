@@ -45,6 +45,16 @@ kubectl get node -o wide
 
 ```
 
+## Environement variable
+TO avoid re-entring the arguments each time when using the Python command, it could be usefull to setting up the arguments as environments variables.
+```bash
+export POSTGRES_USER=db-user
+export POSTGRES_PASSWORD=db-password
+export POSTGRES_DB=db-name
+export POSTGRES_PORT=db-port
+
+```
+
 ## PostgreSQL deployment
 After setting up the GKE cluster resources, we can proceed to deploying the PostgreSQL server with their extension needed, MobilityDB and Citus.
 
@@ -57,7 +67,10 @@ kubectl create -f postgres-config.yaml
 kubectl create -f postgres-secret.yaml
 kubectl create -f postgres-deployment.yaml
 ```
-
+Or you can run the init phase using the pre-defined Python code
+```bash
+python citus_cluster_management init
+```
 
 - Delete Kubernetes ressources 
 ```bash
@@ -367,11 +380,11 @@ osm2pgrouting -h 35.189.193.185  -U docker -W docker -p 30001 -f ../BerlinMod_Br
 ```bash
 
 
-osm2pgsql -c -H 35.189.193.185  -U docker -W  -P 30001 -d brussels-s1 ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels.osm
+osm2pgsql -c -H 34.34.151.202  -U docker -W  -P 30001 -d mobilitydb ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels.osm
 # loads all layers in the osm file, including the adminstrative regions
-psql -h 35.189.193.185  -U docker -d brussels-s1 -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels_preparedata.sql
+psql -h 34.34.151.202  -U docker -d mobilitydb -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/brussels_preparedata.sql
 # samples home and work nodes, transforms data to SRID 3857, does further data preparation
-psql -h 35.189.193.185  -U docker -d brussels-s1  -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/berlinmod_datagenerator.sql
+psql -h 34.34.151.202  -U docker -d mobilitydb  -p 30001 -f ../BerlinMod_Brussels/MobilityDB-BerlinMOD-develop/MobilityDB-BerlinMOD/BerlinMOD/berlinmod_datagenerator.sql
 # adds the pgplsql functions of the simulation to the database
 
 
@@ -385,7 +398,7 @@ psql -h 35.189.193.185  -U docker -d brussels-s1  -p 30001 -f ../BerlinMod_Bruss
 
 ```bash
 
-psql -h  35.189.193.185 -U docker -d brussels-s1 -p 30001 -c 'select berlinmod_generate(scaleFactor := 0.003)'
+psql -h  34.34.151.202 -U docker -d mobilitydb -p 30001 -c 'select berlinmod_generate(scaleFactor := 0.003)'
 ###dump your generated database
 
 pg_dump -h 172.17.0.5  -U docker -p 5432 -d brussels-s1 -f Desktop/Thesis_Work/berlinmod_geo_1_backup.dump 

@@ -54,7 +54,7 @@ def sample_set_node_pool_size(cluster_id,zone,project_id,new_size):
     # Make the request
     response_pool = gcp_client.get_cluster(request=request)
     node_pool_id =response_pool.node_pools[0].name
-    print("node_pool_id",node_pool_id)
+    #print("node_pool_id",node_pool_id)
 
     # Initialize the Kubernetes client
     v1 = client.AppsV1Api()
@@ -81,7 +81,7 @@ please privide new size other than "+str(response.initial_node_count))
     print("pods_hosts!!",pods_hosts)
     # Decide wether we scale out or scale in
     if len(pods_hosts) <new_size-1:
-        print("Resizing Scale out",new_size)
+        print("Resizing scale-out",new_size)
         # Initialize request argument(s)
         request = container_v1.SetNodePoolSizeRequest(project_id=project_id,zone=zone,
         cluster_id=cluster_id,
@@ -97,7 +97,7 @@ please privide new size other than "+str(response.initial_node_count))
             print("The resize operation is still...",str(operations_status).split('.')[-1])
             if str(operations_status).split('.')[-1] == 'DONE':
                 print("Operation finished...",operations_status)
-                print("resizing citus cluster to ", new_size-1)
+                print("Resizing citus cluster to ", new_size-1)
                 scale_workers=scale_out_workers_stateful_set(v1,core,new_size-1)
                 if scale_workers:
                     res = True
@@ -110,7 +110,7 @@ please privide new size other than "+str(response.initial_node_count))
         if scale_workers:
             res=True            
     # Handle the response
-    print("####All consistency operations is done.#### ")
+    print("All consistency operations completed. ")
     return res
 
 
@@ -128,7 +128,7 @@ def scale_in_workers_stateful_set(cluster_id,node_pool_id,zone,project_id,v1,cor
             worker_sts.spec.replicas-=num_nodes
             firs_op=v1.patch_namespaced_stateful_set(name=worker_sts.metadata.name,
              namespace="default", body=worker_sts) 
-            print("Resize after scale in",hosts)
+            print("Resizing the cluster after scale-in",hosts)
             request = container_v1.SetNodePoolSizeRequest(project_id=project_id,zone=zone,
                 cluster_id=cluster_id,
                 node_pool_id=node_pool_id ,
@@ -170,7 +170,7 @@ def scale_out_workers_stateful_set(v1,core,num_nodes):
                         res= True
                         break    
 
-    print("response. after scale in or scale out........")
+    print("Response. after scale-in or scale-out........")
     return res
 
 def scale_in_rebalancing(v1,core,list_pod):
@@ -200,8 +200,11 @@ def scale_in_rebalancing(v1,core,list_pod):
             while True:
                 cur.execute("SELECT details FROM citus_rebalance_status();")
                 records = cur.fetchall()
-                print("rebalancing still running...",records[0][0].get('task_state_counts'))
-                if 'blocked' not in records[0][0].get('task_state_counts'):
+                ##print("rebalancing still running...",records[0][0].get('task_state_counts'))
+                print("rebalancing still running...",records)
+                if len(records)!=0 and 'blocked' not in records[0][0].get('task_state_counts').keys() and 'running'\
+                 not in records[0][0].get('task_state_counts').keys()\
+                 and 'runnable' not in records[0][0].get('task_state_counts').keys():
                     print("deleting the drained node")
                     time.sleep(5)
                     conn.commit()
@@ -212,6 +215,8 @@ def scale_in_rebalancing(v1,core,list_pod):
                     conn.commit()   
                     cur.close()
                     res =True
+                    break
+                elif len(records)==0:
                     break
             print("Rebalancing scale in finished")
             # Close the cursor
@@ -246,9 +251,14 @@ def scale_out_rebalancing(v1, core):
             while True:
                 cur.execute("SELECT details FROM citus_rebalance_status();")
                 records = cur.fetchall()
-                print("rebalancing still running...",records[0][0].get('task_state_counts'))
-                if 'blocked' not in records[0][0].get('task_state_counts'):
+                #print("rebalancing still running...",records[0][0].get('task_state_counts'))
+                print("rebalancing still running...",records)
+                if len(records)!=0 and 'blocked' not in records[0][0].get('task_state_counts').keys() and 'running'\
+                 not in records[0][0].get('task_state_counts').keys()\
+                 and 'runnable' not in records[0][0].get('task_state_counts').keys():
                     res =True
+                    break
+                elif len(records)==0:
                     break
             print("Rebalancing finished")
             # Closing
@@ -330,17 +340,7 @@ def sample_start_cluster(cluster_id,zone,project_id,num_nodes):
 
 
 parser = argparse.ArgumentParser(description='Scaling Citus cluster on GKE.')
-"""
-parser.add_argument('resize', 
-                        help='Scale out or scale in Citus cluster. We assume that your Citus cluster on GKE is initialized\
-                         and your database is distributed over the workers.')
 
-parser.add_argument('start', 
-                        help='Start Citus cluster')
-
-parser.add_argument('stop', 
-                        help='Stop Citus cluster')
-"""
 parser.add_argument('action', choices=['init','start', 'stop', 'resize','delete'],
                         help='Citus cluster management commands.')
     
@@ -361,7 +361,6 @@ args = parser.parse_args()
 
 
 
-# Decide which Daemon action to do
 if args.action=="init":
     
     os.popen('sh ./citus_cluster_initialization.sh')
@@ -379,6 +378,6 @@ elif args.action=="resize":
     if args.num_nodes and args.cluster_name and args.cluster_zone and args.cluster_project and args.num_nodes:
         sample_set_node_pool_size(args.cluster_name,args.cluster_zone, args.cluster_project,int(args.num_nodes))
     else:
-        print("Number of nodes not specified in the argument --num-nodes")
+        print("Number of nodes/name of cluster or zone are not specified in the argument list")
 elif args.action=="delete":
         os.popen('sh ./citus_cluster_deletion.sh')
