@@ -13,7 +13,7 @@ The following figure illustrate the scale-out operation result triggered by the 
 
 ![alt text](./docs/src/Citus_scale_out.drawio.png)
 In the upcoming section, we will provide a tutorial demonstrating the process of deploying a distributed GKE cluster to effectively manage and scale a moving object database analyzed using the MobilityDB extension for PostgreSQL. We will present the required commands to achieve this. 
-# Tutorial
+## Tutorial
 In this tutorial, we will create a workflow that outlines the necessary steps to deploy a GKE cluster, aiming to establish a distributed environment for a PostgreSQL database.
 ## GKE cluster initialization
 First and foremost, you need to possess a Google account to link it within the GCP console. If you already have an existing Google account, you can associate it with GCP by signing in here[](https://console.cloud.google.com).
@@ -135,39 +135,3 @@ python citus_cluster_management.py resize --cluster-name mobilitydb-cluster-1
 --cluster-zone europe-west1-b --cluster-project PROJECT_ID --num-nodes 8
 # Waiting the completion of all operations.
 ```
-The first phase that need to be done, is the initialisation of the infrastructure that support our moving object database. GKE cluster is a product within the Google cloud platform included in the compute service.
-- Create GKE cluster
-```bash
-
-gcloud container clusters create mobilitydb-cluster --zone europe-west1-c --node-pool mobilitydb-node-pool --machine-type e2-standard-4 --disk-type pd-balanced --num-nodes 4
-
-## view clusters info
-gcloud container clusters list --project YOUR_GCP_PROJECT_NAME
-
-```
-- install kubectl to manage GCP K8s cluster if it not found in my local machine 
-```bash
-sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
-#kubectl version
-gke-gcloud-auth-plugin --version
-## update the kubectl env var
-export USE_GKE_GCLOUD_AUTH_PLUGIN=True
-source ~/.bashrc
-```
-- Interact with your cluster using Kubectl
-```bash
-#get the credential first in order to connect to you GKE 
-gcloud container clusters get-credentials mobilitydb-cluster-1 --zone us-central1-c --project argon-system-263617
-##view your GKE nodes
-kubectl get node -o wide
-```
-## Environement variable
-TO avoid re-entring the arguments each time when using the Python command, it could be usefull to setting up the arguments as environments variables.
-```bash
-export POSTGRES_USER=db-user
-export POSTGRES_PASSWORD=db-password
-export POSTGRES_DB=db-name
-export POSTGRES_PORT=db-port
-```
-## PostgreSQL deployment
-After setting up the GKE cluster resources, we can proceed to deploying the PostgreSQL server with their extension needed, MobilityDB and Citus.
