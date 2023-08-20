@@ -15,7 +15,7 @@ The figure below illustrates the outcome of the scale-out operation initiated by
 In the upcoming section, we will provide a tutorial demonstrating the process of deploying a distributed GKE cluster to effectively manage and scale a moving object database analyzed using the MobilityDB extension for PostgreSQL. We will present the required commands to achieve this. 
 ## Tutorial
 In this tutorial, we will create a workflow that outlines the necessary steps to deploy a GKE cluster, aiming to establish a distributed environment for a PostgreSQL database.
-## GKE cluster initialization
+## GKE Cluster Initialization
 First and foremost, you need to possess a Google account to link it within the GCP console. If you already have an existing Google account, you can associate it with GCP by signing in here[](https://console.cloud.google.com).
 Once you have a GCP account, it's necessary to acquire credits to utilize GCP services through the billing account. For further information about GCP credits and billing accounts, please refer to this link[](https://console.cloud.google.com/billing).
 Next, the subsequent steps detail the process of setting up a GKE cluster.
